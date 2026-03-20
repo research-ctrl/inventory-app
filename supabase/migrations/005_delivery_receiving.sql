@@ -10,35 +10,22 @@
 -- ============================================================
 
 -- ============================================================
--- PO LINE ITEMS
--- Required here so delivery_items can reference them; the
--- purchase_orders table was created in 004.
+-- PO LINE ITEMS EXTENSIONS
+-- `po_items` is created in 004_approvals_procurement.sql.
+-- This migration only adds receiving-specific fields used by
+-- delivery and partial-receipt tracking.
 -- ============================================================
 
-CREATE TABLE public.po_items (
-  id                   UUID          PRIMARY KEY DEFAULT uuid_generate_v4(),
-  po_id                UUID          NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
-  line_number          INT           NOT NULL,
-  description          TEXT          NOT NULL,
-  part_number          TEXT,
-  quantity             NUMERIC(12,3) NOT NULL CHECK (quantity > 0),
-  unit                 TEXT          NOT NULL,
-  unit_price           NUMERIC(14,4),
-  currency             CHAR(3)       NOT NULL DEFAULT 'USD',
-  quantity_received    NUMERIC(12,3) NOT NULL DEFAULT 0 CHECK (quantity_received >= 0),
-  notes                TEXT,
-  created_at           TIMESTAMPTZ   NOT NULL DEFAULT now(),
-  updated_at           TIMESTAMPTZ   NOT NULL DEFAULT now(),
+ALTER TABLE public.po_items
+  ADD COLUMN IF NOT EXISTS quantity_received NUMERIC(12,3) NOT NULL DEFAULT 0
+    CHECK (quantity_received >= 0),
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
 
-  CONSTRAINT uq_po_items_line UNIQUE (po_id, line_number)
-);
+DROP TRIGGER IF EXISTS trg_po_items_updated_at ON public.po_items;
 
 CREATE TRIGGER trg_po_items_updated_at
   BEFORE UPDATE ON public.po_items
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-
-CREATE INDEX idx_po_items_po_id
-  ON public.po_items (po_id);
 
 -- ============================================================
 -- DELIVERIES

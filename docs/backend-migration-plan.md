@@ -60,27 +60,27 @@ If you want the current UI and server actions to work, your database needs these
 - `fn_stock_availability`
 - `fn_po_status`
 
-## 3. Backend blockers I found
+## 3. Backend blockers and current status
 
 Before running migrations as-is, there are a few important backend issues to fix.
 
-### A. `po_items` is created twice
-`po_items` is defined in both `004_approvals_procurement.sql` and `005_delivery_receiving.sql`. If you run these migrations sequentially against a clean database, the later migration will fail unless you remove or reconcile the duplicate definition.
+### A. `po_items` duplication has been reconciled
+`po_items` is created in `004_approvals_procurement.sql`, and `005_delivery_receiving.sql` now only extends that table with receiving-specific fields instead of recreating it.
 
-### B. `009_views_rpc.sql` references columns that do not exist
-The current view migration uses several wrong column names:
+### B. `009_views_rpc.sql` has been aligned with the current schema
+The read-model migration was corrected so it uses the actual column names:
 
-- `qi.inspected_at` should be aligned with the actual QC table column
-- `it.type` should match `inventory_transactions.transaction_type`
-- `mi.vessel_name` should be derived from `vessels.name` via join, because `material_issues` stores `vessel_id`
+- `qi.inspection_date`
+- `inventory_transactions.transaction_type`
+- `vessels.name` joined from `material_issues.vessel_id`
 
-That means the reporting/views migration needs a cleanup pass before `supabase db push` will succeed on a fresh environment.
+That means the reporting/views migration should now be safe to run in the prototype branch.
 
 ### C. Prototype mode still depends on authenticated-style profile rows
 The prototype intentionally avoids sign-in, but several tables still require actor/user foreign keys into `profiles`, and `profiles.id` itself points to `auth.users(id)`. The prototype helper resolves a fallback actor from `profiles`, so the database still needs at least one usable actor row or an alternative prototype-safe operator model.
 
-### D. Existing RLS migration conflicts with the prototype constraints
-The prototype requirements said not to add RLS or auth-gated access for this build, but the repo still contains `010_rls.sql`. For the prototype deployment path, you should either skip that migration or replace it with a prototype-safe alternative.
+### D. `010_rls.sql` is intentionally a prototype no-op
+The prototype requirements said not to add RLS or auth-gated access for this build, so `010_rls.sql` should remain a no-op placeholder on the prototype branch until an authenticated version is intentionally introduced.
 
 ## 4. What I recommend adding next on the backend
 
@@ -202,11 +202,10 @@ Why: the prototype UX is heavily traceability-driven, so getting the reporting l
 
 If you do not want to redesign much yet, do this in order:
 
-1. Fix the duplicate `po_items` definition.
-2. Fix the broken view/RPC migration so a fresh database can migrate cleanly.
-3. Add a prototype operator table plus nullable attribution references.
-4. Add at least one normalized table for usage outcomes.
-5. Optionally add normalized tables for vendor returns and inventory intake.
+1. Run the schema chain through `010_rls.sql` on the prototype branch.
+2. Add a prototype operator table plus nullable attribution references.
+3. Add at least one normalized table for usage outcomes.
+4. Optionally add normalized tables for vendor returns and inventory intake.
 
 ## 6. Seed data you should prepare
 
@@ -225,7 +224,7 @@ Even for prototype use, you should seed:
 
 ## 7. Recommended commands
 
-Once you have repaired the SQL files, the deployment flow should be roughly:
+With the prototype migration fixes in place, the deployment flow should be roughly:
 
 ```bash
 supabase db reset

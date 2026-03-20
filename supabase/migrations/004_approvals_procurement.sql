@@ -152,7 +152,7 @@ CREATE INDEX idx_purchase_orders_requirement
 -- PO LINE ITEMS
 -- ============================================================
 
-CREATE TABLE public.po_items (
+CREATE TABLE IF NOT EXISTS public.po_items (
   id                   UUID         PRIMARY KEY DEFAULT uuid_generate_v4(),
   po_id                UUID         NOT NULL REFERENCES public.purchase_orders(id) ON DELETE CASCADE,
   requirement_item_id  UUID         REFERENCES public.requirement_items(id) ON DELETE SET NULL,
@@ -180,7 +180,7 @@ CREATE TABLE public.po_items (
   CONSTRAINT uq_po_items_line UNIQUE (po_id, line_number)
 );
 
-CREATE INDEX idx_po_items_po
+CREATE INDEX IF NOT EXISTS idx_po_items_po
   ON public.po_items (po_id);
 
 -- ============================================================

@@ -2,21 +2,23 @@ import { createClient } from '@/lib/supabase/server'
 
 export type ProfileRow = {
   id: string
-  full_name: string
+  full_name: string | null
   email: string
   role: string | null
   department: string | null
+  phone_number: string | null
+  designation: string | null
 }
 
 /**
- * All active profiles ordered by full_name
+ * All profiles ordered by full_name
  */
 export async function getProfiles(): Promise<ProfileRow[]> {
   const sb = await createClient()
 
   const { data, error } = await sb
     .from('profiles')
-    .select('id, full_name, email, role, department')
+    .select('id, full_name, email, role, department, phone_number, designation')
     .order('full_name', { ascending: true })
 
   if (error) throw new Error(`getProfiles: ${error.message}`)
@@ -31,7 +33,7 @@ export async function getProfileById(id: string): Promise<ProfileRow | null> {
 
   const { data, error } = await sb
     .from('profiles')
-    .select('id, full_name, email, role, department')
+    .select('id, full_name, email, role, department, phone_number, designation')
     .eq('id', id)
     .single()
 
@@ -47,7 +49,7 @@ export async function getProfilesByRole(role: string): Promise<ProfileRow[]> {
 
   const { data, error } = await sb
     .from('profiles')
-    .select('id, full_name, email, role, department')
+    .select('id, full_name, email, role, department, phone_number, designation')
     .eq('role', role)
     .order('full_name', { ascending: true })
 

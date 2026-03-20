@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { format } from 'date-fns';
+import Link from 'next/link';
+import { Pencil } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import StockCheckPanel from './stock-check-panel';
 import { transitionRequirement } from '@/actions/requirements';
@@ -253,23 +255,31 @@ export default function RequirementDetail({
           )}
         </div>
 
-        {availableTransitions.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            {availableTransitions.map((t) => (
-              <TransitionButton
-                key={t.event}
-                transition={t}
-                requirementId={requirement.id}
-                currentStatus={requirement.status}
-                onDone={handleTransitionDone}
-              />
-            ))}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Edit button — hidden for closed/rejected */}
+          {!['closed', 'rejected', 'cancelled'].includes(requirement.status) && (
+            <Link
+              href={`/requirements/${requirement.id}/edit`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit
+            </Link>
+          )}
+          {availableTransitions.map((t) => (
+            <TransitionButton
+              key={t.event}
+              transition={t}
+              requirementId={requirement.id}
+              currentStatus={requirement.status}
+              onDone={handleTransitionDone}
+            />
+          ))}
+        </div>
       </div>
 
       {/* 2. Info Cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <InfoCard
           label="Vessel"
           value={requirement.vessel?.name ?? requirement.vessels?.name ?? '—'}
@@ -279,15 +289,25 @@ export default function RequirementDetail({
           value={requirement.department?.name ?? requirement.departments?.name ?? '—'}
         />
         <InfoCard
-          label="Requested By"
+          label="Posted By"
           value={
             requirement.requested_by_profile?.full_name ??
+            requirement.requested_by_profile?.email ??
             requirement.profiles?.full_name ??
             requirement.profiles?.email ??
             '—'
           }
         />
+        <InfoCard
+          label="Approved By"
+          value={
+            requirement.approved_by_profile?.full_name ??
+            requirement.approved_by_profile?.email ??
+            '—'
+          }
+        />
         <InfoCard label="Required By" value={formatDate(requirement.required_date)} />
+        <InfoCard label="Created" value={formatDateTime(requirement.created_at)} />
         <InfoCard
           label="Budget"
           value={

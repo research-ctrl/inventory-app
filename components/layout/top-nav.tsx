@@ -3,22 +3,31 @@
 import { useState, type ReactNode } from 'react'
 import { Menu, Bell, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { User } from '@supabase/supabase-js'
 import type { Role } from '@/lib/auth/roles'
 import { ROLE_LABELS } from '@/lib/auth/roles'
 
 interface TopNavProps {
-  user?: User | null
+  user?: { id: string; email?: string | null } | null
+  profile?: { full_name?: string | null; role?: string | null } | null
+  displayName?: string
   role?: Role
   breadcrumb?: ReactNode
   onMenuClick?: () => void
 }
 
-function UserAvatar({ email }: { email: string }) {
-  const initials = email
-    .split('@')[0]
-    .slice(0, 2)
-    .toUpperCase()
+function UserAvatar({ name, email }: { name?: string | null; email?: string | null }) {
+  // Use first+last name initials if available, else first two chars of email username
+  const initials = name
+    ? name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : (email ?? 'U')
+        .split('@')[0]
+        .slice(0, 2)
+        .toUpperCase()
 
   return (
     <div
@@ -30,9 +39,10 @@ function UserAvatar({ email }: { email: string }) {
   )
 }
 
-export function TopNav({ user, role, breadcrumb, onMenuClick }: TopNavProps) {
+export function TopNav({ user, profile, displayName, role, breadcrumb, onMenuClick }: TopNavProps) {
   const [notifOpen, setNotifOpen] = useState(false)
 
+  const fullName = displayName ?? profile?.full_name ?? user?.email ?? ''
   const userEmail = user?.email ?? ''
 
   return (
@@ -48,7 +58,6 @@ export function TopNav({ user, role, breadcrumb, onMenuClick }: TopNavProps) {
           <Menu className="h-5 w-5" />
         </button>
 
-        {/* Breadcrumb / page title slot */}
         {breadcrumb && (
           <div className="min-w-0 truncate text-sm text-gray-600">
             {breadcrumb}
@@ -70,11 +79,9 @@ export function TopNav({ user, role, breadcrumb, onMenuClick }: TopNavProps) {
             aria-label="View notifications"
           >
             <Bell className="h-5 w-5" />
-            {/* Unread indicator dot — placeholder, wire up real count later */}
             <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
           </button>
 
-          {/* Dropdown stub */}
           {notifOpen && (
             <div className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
               <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -89,11 +96,16 @@ export function TopNav({ user, role, breadcrumb, onMenuClick }: TopNavProps) {
 
         {/* User avatar + info */}
         <div className="flex items-center gap-2">
-          <UserAvatar email={userEmail} />
+          <UserAvatar name={fullName !== userEmail ? fullName : null} email={userEmail} />
           <div className="hidden sm:block leading-tight">
-            <p className="text-sm font-medium text-gray-800 truncate max-w-[140px]">
-              {userEmail || 'Guest'}
+            {/* Show full name prominently if it exists, otherwise email */}
+            <p className="text-sm font-medium text-gray-800 truncate max-w-[160px]">
+              {fullName || 'User'}
             </p>
+            {/* Show email below full name if name is different */}
+            {fullName && fullName !== userEmail && userEmail && (
+              <p className="text-[10px] text-gray-400 truncate max-w-[160px]">{userEmail}</p>
+            )}
             {role && (
               <span className="inline-block rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 ring-1 ring-inset ring-blue-200">
                 {ROLE_LABELS[role] ?? role}

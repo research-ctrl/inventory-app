@@ -1,12 +1,13 @@
 import type { AIRequest } from "../provider-router";
 
-const GROK_API_URL = "https://api.x.ai/v1/chat/completions";
-const GROK_MODEL = "grok-3-latest";
+// Groq — ultra-fast inference with Llama/Mixtral models via OpenAI-compatible API
+const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+const GROQ_MODEL = "llama-3.3-70b-versatile";
 
 export async function generateWithGrok(request: AIRequest): Promise<string> {
-  const apiKey = process.env.GROK_API_KEY;
-  if (!apiKey || apiKey === "your-grok-api-key") {
-    throw new Error("GROK_API_KEY is not configured. Please add a valid Grok API key.");
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey || apiKey.startsWith("your-")) {
+    throw new Error("GROQ_API_KEY is not configured. Please add a valid Groq API key.");
   }
 
   const messages = request.messages.map((m) => ({
@@ -14,14 +15,14 @@ export async function generateWithGrok(request: AIRequest): Promise<string> {
     content: m.content,
   }));
 
-  const response = await fetch(GROK_API_URL, {
+  const response = await fetch(GROQ_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: GROK_MODEL,
+      model: GROQ_MODEL,
       messages,
       temperature: 0.7,
       max_tokens: 4096,
@@ -30,11 +31,11 @@ export async function generateWithGrok(request: AIRequest): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Grok API error (${response.status}): ${errorText}`);
+    throw new Error(`Groq API error (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Grok returned an empty response");
+  if (!content) throw new Error("Groq returned an empty response");
   return content;
 }

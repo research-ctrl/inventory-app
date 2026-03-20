@@ -13,9 +13,9 @@ const envSchema = z.object({
 
   // AI
   GEMINI_API_KEY: z.string().optional(),
-  GROK_API_KEY: z.string().optional(),
+  GROQ_API_KEY: z.string().optional(),
   MISTRAL_API_KEY: z.string().optional(),
-  AI_DEFAULT_PROVIDER: z.enum(["gemini", "grok", "mistral"]).default("gemini"),
+  AI_DEFAULT_PROVIDER: z.enum(["gemini", "groq", "mistral"]).default("gemini"),
 
   // Webhook
   WEBHOOK_SECRET: z.string().optional(),

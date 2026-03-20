@@ -1,6 +1,6 @@
 import { env } from "@/lib/env";
 
-export type AIProvider = "gemini" | "grok" | "mistral";
+export type AIProvider = "gemini" | "groq" | "mistral";
 
 export interface AIRequest {
   messages: { role: "user" | "assistant" | "system"; content: string }[];
@@ -23,7 +23,7 @@ export async function routeToProvider(
     return generateWithMistral(request);
   }
 
-  // grok
+  // groq (default fallback)
   const { generateWithGrok } = await import("./providers/grok");
   return generateWithGrok(request);
 }

@@ -5,7 +5,7 @@ import { applyGuardrails } from "@/lib/ai/guardrails";
 import { SYSTEM_PROMPT } from "@/lib/ai/system-prompt";
 import { getDatabaseContext } from "@/lib/ai/database-context";
 
-const VALID_PROVIDERS: AIProvider[] = ["gemini", "grok", "mistral"];
+const VALID_PROVIDERS: AIProvider[] = ["gemini", "groq", "mistral"];
 
 export async function POST(request: NextRequest) {
   try {

@@ -18,6 +18,7 @@ import {
   MessageSquare,
   BarChart3,
   Settings,
+  ShieldCheck,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/auth/roles'
@@ -75,6 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'System',
     items: [
       { label: 'Settings', href: '/settings', icon: Settings },
+      { label: 'Admin Panel', href: '/admin', icon: ShieldCheck },
     ],
   },
 ]
@@ -83,9 +85,10 @@ const NAV_GROUPS: NavGroup[] = [
 
 interface SidebarProps {
   role?: Role
+  userName?: string
 }
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, userName }: SidebarProps) {
   const pathname = usePathname()
 
   function isActive(href: string): boolean {
@@ -140,13 +143,19 @@ export function Sidebar({ role }: SidebarProps) {
         ))}
       </nav>
 
-      {/* Role indicator at the bottom */}
-      {role && (
-        <div className="flex-shrink-0 border-t border-gray-200 px-5 py-3">
-          <p className="text-xs text-gray-400">Signed in as</p>
-          <p className="text-xs font-medium text-gray-700 truncate">
-            {ROLE_LABELS[role] ?? role}
-          </p>
+      {/* User info at the bottom */}
+      {(role || userName) && (
+        <div className="flex-shrink-0 border-t border-gray-200 px-5 py-3 space-y-0.5">
+          {userName && (
+            <p className="text-xs font-semibold text-gray-800 truncate" title={userName}>
+              {userName}
+            </p>
+          )}
+          {role && (
+            <p className="text-xs text-gray-400 truncate">
+              {ROLE_LABELS[role] ?? role}
+            </p>
+          )}
         </div>
       )}
     </aside>

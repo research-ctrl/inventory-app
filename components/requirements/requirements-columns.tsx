@@ -3,6 +3,7 @@
 import type { ColumnDef } from '@tanstack/react-table';
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { Pencil } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import type { RequirementRow } from '@/lib/db/queries/requirements';
 
@@ -59,6 +60,21 @@ export const requirementColumns: ColumnDef<RequirementRow>[] = [
     ),
   },
   {
+    id: 'posted_by',
+    header: 'Posted By',
+    accessorFn: (row) =>
+      row.requested_by_profile?.full_name ?? row.requested_by_profile?.email ?? '',
+    cell: ({ row }) => {
+      const profile = row.original.requested_by_profile;
+      const name = profile?.full_name ?? profile?.email ?? '—';
+      return (
+        <span className="text-sm text-gray-700 max-w-[130px] truncate block" title={name}>
+          {name}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: 'urgency',
     header: 'Urgency',
     cell: ({ row }) => {
@@ -89,5 +105,23 @@ export const requirementColumns: ColumnDef<RequirementRow>[] = [
     cell: ({ row }) => (
       <span className="text-sm text-gray-500">{formatDate(row.original.created_at)}</span>
     ),
+  },
+  {
+    id: 'actions',
+    header: '',
+    cell: ({ row }) => {
+      const id = row.original.id;
+      if (!id) return null;
+      return (
+        <Link
+          href={`/requirements/${id}/edit`}
+          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          title="Edit requirement"
+        >
+          <Pencil className="h-3 w-3" />
+          Edit
+        </Link>
+      );
+    },
   },
 ];

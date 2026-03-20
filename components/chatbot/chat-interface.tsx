@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Loader2, Sparkles, Trash2, ChevronDown } from "lucide-react";
 
-type AIProvider = "gemini" | "grok" | "mistral";
+type AIProvider = "gemini" | "groq" | "mistral";
 
 interface ProviderOption {
   id: AIProvider;
@@ -29,9 +29,9 @@ const PROVIDERS: ProviderOption[] = [
     dot: "bg-orange-500",
   },
   {
-    id: "grok",
-    label: "Grok 3",
-    description: "xAI · Requires API key",
+    id: "groq",
+    label: "Groq · Llama 3.3",
+    description: "Groq · Ultra-fast inference",
     color: "text-purple-700",
     dot: "bg-purple-500",
   },
@@ -73,7 +73,7 @@ export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider>("groq");
   const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);

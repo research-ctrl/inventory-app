@@ -80,6 +80,40 @@ export async function adminUpdateProfile(
 }
 
 /**
+ * Grant a role to a user by email address.
+ * Accessible by admins or in bootstrap mode (0 admins exist).
+ */
+export async function grantRoleByEmail(email: string, role: Role) {
+  try {
+    await requireAdminOrBootstrap()
+    const sb = createAdminClient()
+
+    // Find profile by email
+    const { data: profile, error: findErr } = await (sb
+      .from('profiles')
+      .select('id, email, role')
+      .eq('email', email.toLowerCase().trim())
+      .single() as any)
+
+    if (findErr || !profile) {
+      return { success: false, error: `No user found with email: ${email}. They may need to sign up first.` }
+    }
+
+    const { error } = await sb
+      .from('profiles')
+      .update({ role } as any)
+      .eq('id', profile.id)
+
+    if (error) throw new Error(error.message)
+
+    revalidatePath('/admin')
+    return { success: true, message: `${email} has been granted the '${role}' role.` }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+/**
  * List all profiles (admin or bootstrap only).
  */
 export async function adminListProfiles() {

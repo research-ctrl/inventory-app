@@ -15,7 +15,33 @@ export async function getPendingApprovals(userId?: string) {
   if (userId) query = query.eq('approver_id', userId)
   const { data, error } = await query
   if (error) throw new Error(error.message)
-  return data ?? []
+
+  const rows = data ?? []
+  if (rows.length === 0) return rows
+
+  // Enrich with entity reference numbers for better display
+  const reqIds = rows.filter((r) => r.entity_type === 'requirement').map((r) => r.entity_id as string)
+  const poIds  = rows.filter((r) => r.entity_type === 'purchase_order').map((r) => r.entity_id as string)
+
+  const reqMap: Record<string, string> = {}
+  const poMap:  Record<string, string> = {}
+
+  if (reqIds.length > 0) {
+    const { data: reqs } = await sb.from('requirements').select('id, ref_number, title').in('id', reqIds)
+    for (const r of reqs ?? []) reqMap[r.id] = r.ref_number ?? r.title ?? r.id.substring(0, 8)
+  }
+  if (poIds.length > 0) {
+    const { data: pos } = await sb.from('purchase_orders').select('id, po_number').in('id', poIds)
+    for (const p of pos ?? []) poMap[p.id] = (p as any).po_number ?? p.id.substring(0, 8)
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    entity_ref:
+      r.entity_type === 'requirement'   ? (reqMap[r.entity_id!] ?? r.entity_id?.substring(0, 8))
+      : r.entity_type === 'purchase_order' ? (poMap[r.entity_id!]  ?? r.entity_id?.substring(0, 8))
+      : r.entity_id?.substring(0, 8),
+  }))
 }
 
 export async function getApprovalsForEntity(entityType: string, entityId: string) {

@@ -6,8 +6,26 @@ import { getServerSession } from '@/lib/auth/session'
 import { can } from '@/lib/permissions/checks'
 import { CreateRequirementSchema, UpdateRequirementSchema } from '@/lib/validations/requirement'
 import { dbCreateRequirement, dbTransitionRequirement, dbUpdateRequirement } from '@/lib/db/mutations/requirements'
+import { dbCreateApproval } from '@/lib/db/mutations/approvals'
 import { canTransition } from '@/lib/workflow/transitions'
 import type { CreateRequirementInput } from '@/lib/validations/requirement'
+
+/** Roles that can act as approvers, in priority order */
+const APPROVER_ROLES = ['approver', 'procurement_manager', 'admin', 'super_admin'] as const
+
+/** Find the best available approver in the system */
+async function findApprover(sb: Awaited<ReturnType<typeof createClient>>): Promise<string | null> {
+  const { data } = await sb
+    .from('profiles')
+    .select('id, role')
+    .in('role', [...APPROVER_ROLES] as string[])
+  if (!data || data.length === 0) return null
+  for (const role of APPROVER_ROLES) {
+    const found = data.find((p: any) => p.role === role)
+    if (found) return found.id
+  }
+  return (data[0] as any).id
+}
 
 /** Roles allowed to change urgency inline */
 const URGENCY_EDIT_ROLES = [
@@ -68,6 +86,18 @@ export async function transitionRequirement(id: string, toStatus: string, commen
       return { success: false, error: 'Transition not allowed for your role' }
     }
     await dbTransitionRequirement(id, toStatus, profile.id, comment)
+
+    // When submitted for approval → create an approval record automatically
+    if (toStatus === 'pending_approval') {
+      const approverId = await findApprover(sb)
+      if (approverId) {
+        // Calculate a 3-day due date
+        const due = new Date()
+        due.setDate(due.getDate() + 3)
+        await dbCreateApproval('requirement', id, approverId, 1, due.toISOString().split('T')[0])
+      }
+    }
+
     revalidatePath('/requirements')
     revalidatePath(`/requirements/${id}`)
     revalidatePath('/approvals')

@@ -11,6 +11,7 @@ export interface ApprovalRow {
   id: string;
   entity_type: string | null;
   entity_id: string | null;
+  entity_ref?: string | null;  // enriched ref number (e.g. REQ-001, PO-002)
   step_number: number | null;
   status: string | null;
   due_date: string | null;
@@ -65,15 +66,13 @@ export const approvalColumns: ColumnDef<ApprovalRow>[] = [
   },
   {
     accessorKey: 'entity_id',
-    header: 'Entity',
+    header: 'Reference',
     cell: ({ row }) => {
       const link = entityLink(row.original.entity_type, row.original.entity_id);
-      const label = row.original.entity_id
-        ? row.original.entity_id.substring(0, 8) + '…'
-        : '—';
+      const label = row.original.entity_ref ?? (row.original.entity_id ? row.original.entity_id.substring(0, 8) + '…' : '—');
       if (link) {
         return (
-          <Link href={link} className="font-mono text-blue-600 hover:underline text-xs">
+          <Link href={link} className="font-mono text-blue-600 hover:underline text-xs font-semibold">
             {label}
           </Link>
         );

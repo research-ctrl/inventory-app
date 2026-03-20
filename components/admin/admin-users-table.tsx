@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Pencil, Check, X, Phone, Briefcase, Shield, Save } from 'lucide-react';
-import { adminUpdateProfile } from '@/actions/admin';
+import { Pencil, Check, X, Phone, Briefcase, Shield, Save, UserPlus } from 'lucide-react';
+import { adminUpdateProfile, grantRoleByEmail } from '@/actions/admin';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import type { Role } from '@/lib/auth/roles';
 
@@ -161,6 +161,77 @@ function EditRow({ profile, onDone, onCancel }: EditRowProps) {
         </div>
       </td>
     </tr>
+  );
+}
+
+// ── Grant by Email Panel ──────────────────────────────────────────────────────
+function GrantByEmailPanel() {
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<Role>('admin');
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleGrant() {
+    if (!email.trim()) return;
+    setResult(null);
+    startTransition(async () => {
+      const res = await grantRoleByEmail(email.trim(), role);
+      if (res.success) {
+        setResult({ ok: true, msg: (res as any).message ?? `Role granted to ${email}` });
+        setEmail('');
+      } else {
+        setResult({ ok: false, msg: res.error ?? 'Unknown error' });
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-blue-900 mb-1 flex items-center gap-2">
+        <UserPlus className="h-4 w-4" /> Grant Role by Email
+      </h3>
+      <p className="text-xs text-blue-700 mb-3">
+        Quickly assign a role to any registered user by their email address.
+      </p>
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs font-medium text-blue-800 mb-1">Email</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="user@example.com"
+            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-blue-800 mb-1">Role</label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role)}
+            className="rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {ALL_ROLES.map((r) => (
+              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleGrant}
+          disabled={isPending || !email.trim()}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+        >
+          {isPending ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <UserPlus className="h-3.5 w-3.5" />}
+          {isPending ? 'Granting…' : 'Grant Role'}
+        </button>
+      </div>
+      {result && (
+        <div className={`mt-3 rounded-lg px-3 py-2 text-sm flex items-center gap-2 ${result.ok ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          {result.ok ? <Check className="h-4 w-4 shrink-0" /> : <X className="h-4 w-4 shrink-0" />}
+          {result.msg}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -344,6 +415,9 @@ export default function AdminUsersTable({
           </table>
         </div>
       </div>
+
+      {/* Grant by Email */}
+      <GrantByEmailPanel />
 
       {/* Role Legend */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

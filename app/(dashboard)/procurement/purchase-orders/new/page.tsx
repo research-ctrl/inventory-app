@@ -1,5 +1,4 @@
-import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { getVendors } from '@/lib/db/queries/vendors'
 import { getRequirements } from '@/lib/db/queries/requirements'
 import { PageHeader } from '@/components/shared/page-header'
@@ -15,20 +14,8 @@ export default async function NewPurchaseOrderPage({
   searchParams: Promise<{ requirement_id?: string }> 
 }) {
   const sp = await searchParams
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id ?? '')
-    .single() as { data: { role: string } | null; error: any }
-
-  if (!profile || !ALLOWED_ROLES.includes(profile.role)) {
-    redirect('/procurement/purchase-orders')
-  }
+  const { role } = await getServerSession()
+  const canCreate = ALLOWED_ROLES.includes(role)
 
   const [vendorList, reqList] = await Promise.all([
     getVendors({ is_approved: true }),
@@ -52,7 +39,9 @@ export default async function NewPurchaseOrderPage({
     <div className="space-y-6">
       <PageHeader
         title="New Purchase Order"
-        description="Create a new purchase order for an approved vendor"
+        description={canCreate
+          ? 'Create a new purchase order for an approved vendor'
+          : 'Prototype mode keeps this page visible without login. Actions still require backend seed data and the relevant tables.'}
       />
       <PoForm
         vendors={vendorList as any}

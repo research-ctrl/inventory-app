@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { getPurchaseOrderById } from '@/lib/db/queries/purchase-orders'
 import { getAvailableTransitions } from '@/lib/workflow/transitions'
 import PoDetail from '@/components/procurement/po-detail'
@@ -20,17 +21,7 @@ export default async function PurchaseOrderDetailPage({
   params: Promise<{ id: string }>
 }) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id ?? '')
-    .single()
-
-  const role = profile?.role ?? 'viewer'
+  const { role } = await getServerSession()
 
   let po
   try {

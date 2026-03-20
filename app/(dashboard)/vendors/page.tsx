@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Plus, GitCompare, AlertCircle } from 'lucide-react'
 import { getVendors } from '@/lib/db/queries/vendors'
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { DataTable } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { vendorColumns } from '@/components/vendors/vendors-columns'
@@ -11,18 +11,7 @@ export const metadata = { title: 'Vendors | SMLS' }
 const MANAGER_ROLES = ['admin', 'super_admin', 'procurement_manager']
 
 export default async function VendorsPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id ?? '')
-    .single()
-
-  const role = profile?.role ?? 'viewer'
+  const { role } = await getServerSession()
   const isManager = MANAGER_ROLES.includes(role)
 
   const vendors = await getVendors()

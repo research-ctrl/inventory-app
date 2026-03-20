@@ -3,13 +3,12 @@
 import { useState, type ReactNode } from 'react'
 import { Menu, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { User } from '@supabase/supabase-js'
 import type { Role } from '@/lib/auth/roles'
 import { ROLE_LABELS } from '@/lib/auth/roles'
 import { OperatorIdentityModal } from '@/components/layout/operator-identity'
 
 interface TopNavProps {
-  user?: User | null
+  user?: { email?: string | null } | null
   role?: Role
   breadcrumb?: ReactNode
   onMenuClick?: () => void

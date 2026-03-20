@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { getServerSession } from '@/lib/auth/session';
 import { PageHeader } from '@/components/shared/page-header';
 import { StatusBadge } from '@/components/shared/status-badge';
 import ApprovalActionDialog from '@/components/approvals/approval-action-dialog';
@@ -31,16 +32,7 @@ function entityLabel(entityType: string | null) {
 
 export default async function ApprovalDetailPage({ params }: PageProps) {
   const sb = await createClient();
-
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-
-  const { data: profile } = await sb
-    .from('profiles')
-    .select('id, role')
-    .eq('id', user?.id ?? '')
-    .single();
+  const session = await getServerSession();
 
   // Fetch the approval with approver profile
   const { data: approval, error } = await sb
@@ -54,9 +46,9 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
 
   if (error || !approval) notFound();
 
-  const role = profile?.role ?? 'viewer';
+  const role = session.role;
   const isOwnPendingApproval =
-    profile?.id === approval.approver_id && approval.status === 'pending_approval';
+    session.profile.id === approval.approver_id && approval.status === 'pending_approval';
   const isAdmin = ['admin', 'super_admin'].includes(role);
   const canAct = isOwnPendingApproval || isAdmin;
 

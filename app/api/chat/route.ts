@@ -1,11 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { routeToProvider } from "@/lib/ai/provider-router";
+import { applyGuardrails } from "@/lib/ai/guardrails";
+import { SYSTEM_PROMPT } from "@/lib/ai/system-prompt";
+import { getDatabaseContext } from "@/lib/ai/database-context";
 
 export async function POST(request: NextRequest) {
   try {
+    // Auth check
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = await request.json();
-    // TODO: Route to AI provider via lib/ai
-    return NextResponse.json({ message: "Chat endpoint placeholder", input: body });
-  } catch {
-    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    const { message, history = [] } = body;
+
+    if (!message || typeof message !== "string" || message.trim().length === 0) {
+      return NextResponse.json({ error: "Message is required" }, { status: 400 });
+    }
+
+    if (message.length > 4000) {
+      return NextResponse.json({ error: "Message too long (max 4000 chars)" }, { status: 400 });
+    }
+
+    // Guardrails check
+    const guard = applyGuardrails(message);
+    if (!guard.allowed) {
+      return NextResponse.json({ error: guard.reason }, { status: 403 });
+    }
+
+    // Fetch read-only database context
+    const dbContext = await getDatabaseContext();
+
+    // Build messages array
+    const messages = [
+      { role: "system" as const, content: SYSTEM_PROMPT + "\n\n" + dbContext },
+      ...history.map((h: any) => ({
+        role: h.role as "user" | "assistant",
+        content: h.content,
+      })),
+      { role: "user" as const, content: message },
+    ];
+
+    // Route to provider
+    const response = await routeToProvider({ messages });
+
+    return NextResponse.json({ response });
+  } catch (error: any) {
+    console.error("❌ Chat API error:", error?.message ?? error);
+    return NextResponse.json(
+      { error: error?.message ?? "An error occurred" },
+      { status: 500 }
+    );
   }
 }

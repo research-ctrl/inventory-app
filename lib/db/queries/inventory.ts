@@ -1,62 +1,167 @@
-'use server'
 import { createClient } from '@/lib/supabase/server'
 
-export type StockCheckResult = {
+export type StockRow = {
   pin_id: string
   pin_number: string
   description: string
   part_number: string | null
-  current_stock: number
+  category: string | null
   unit: string
+  location_id: string | null
   location_code: string | null
   location_name: string | null
+  current_stock: number
+  min_stock_level: number
+  is_low_stock: boolean
+  status: string
+  parent_pin_id: string | null
+  origin_type: string | null
 }
 
-export async function checkStock(partNumber?: string, description?: string): Promise<StockCheckResult[]> {
+/**
+ * Query v_stock_balance view with optional filters
+ */
+export async function getStockBalance(filters?: {
+  search?: string
+  location_id?: string
+  status?: string
+  category?: string
+}): Promise<StockRow[]> {
   const sb = await createClient()
-  let query = sb
-    .from('inventory_pins')
-    .select(`
-      id, pin_number, description, part_number, unit, status,
-      location:store_locations(code, name),
-      inventory_transactions(transaction_type, quantity)
-    `)
-    .neq('status', 'scrapped')
 
-  if (partNumber) query = query.ilike('part_number', `%${partNumber}%`)
-  if (description) query = query.ilike('description', `%${description}%`)
+  let query = sb
+    .from('v_stock_balance')
+    .select('*')
+    .order('pin_number', { ascending: true })
+
+  if (filters?.search) {
+    query = query.or(
+      `description.ilike.%${filters.search}%,part_number.ilike.%${filters.search}%,pin_number.ilike.%${filters.search}%`
+    )
+  }
+  if (filters?.location_id) {
+    query = query.eq('location_id', filters.location_id)
+  }
+  if (filters?.status) {
+    query = query.eq('status', filters.status)
+  }
+  if (filters?.category) {
+    query = query.eq('category', filters.category)
+  }
 
   const { data, error } = await query
-  if (error) throw new Error(error.message)
-
-  return (data ?? []).map((pin: any) => {
-    const stock = (pin.inventory_transactions ?? []).reduce((sum: number, t: any) => {
-      if (['receipt', 'return', 'adjustment'].includes(t.transaction_type) && t.quantity > 0) return sum + t.quantity
-      if (['issue', 'transfer', 'write_off'].includes(t.transaction_type)) return sum - t.quantity
-      return sum + t.quantity
-    }, 0)
-    return {
-      pin_id: pin.id,
-      pin_number: pin.pin_number,
-      description: pin.description,
-      part_number: pin.part_number,
-      current_stock: Math.max(0, stock),
-      unit: pin.unit,
-      location_code: pin.location?.code ?? null,
-      location_name: pin.location?.name ?? null,
-    }
-  })
+  if (error) throw new Error(`getStockBalance: ${error.message}`)
+  return (data ?? []) as unknown as StockRow[]
 }
 
-export async function getInventoryPins(filters?: { search?: string; location_id?: string }) {
+/**
+ * Full pin detail: pin + location + parent_pin + child_pins + latest transactions (50)
+ */
+export async function getPinById(id: string) {
   const sb = await createClient()
-  let query = sb
+
+  const { data, error } = await sb
     .from('inventory_pins')
-    .select(`*, location:store_locations(id, code, name)`)
-    .order('pin_number')
-  if (filters?.search) query = query.or(`description.ilike.%${filters.search}%,part_number.ilike.%${filters.search}%,pin_number.ilike.%${filters.search}%`)
-  if (filters?.location_id) query = query.eq('location_id', filters.location_id)
+    .select(
+      `*,
+       location:store_locations(id, code, name, description),
+       parent_pin:inventory_pins!inventory_pins_parent_pin_id_fkey(
+         id, pin_number, description, part_number, unit, status
+       ),
+       derived_pins:inventory_pins!inventory_pins_parent_pin_id_fkey(
+         id, pin_number, description, part_number, unit, status, location_id
+       ),
+       transactions:inventory_transactions(
+         id, transaction_type, quantity, quantity_before, quantity_after,
+         reference_type, reference_id, location_id, unit_cost, notes, created_at,
+         actor:profiles!inventory_transactions_actor_id_fkey(id, full_name)
+       )`
+    )
+    .eq('id', id)
+    .order('created_at', { referencedTable: 'transactions', ascending: false })
+    .limit(50, { referencedTable: 'transactions' })
+    .single()
+
+  if (error) throw new Error(`getPinById: ${error.message}`)
+  return data as unknown as Record<string, unknown>
+}
+
+/**
+ * inventory_transactions for a pin, ordered by created_at DESC
+ */
+export async function getPinTransactions(pinId: string, limit = 50) {
+  const sb = await createClient()
+
+  const { data, error } = await sb
+    .from('inventory_transactions')
+    .select(
+      `*,
+       actor:profiles!inventory_transactions_actor_id_fkey(id, full_name)`
+    )
+    .eq('pin_id', pinId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw new Error(`getPinTransactions: ${error.message}`)
+  return (data ?? []) as unknown as Record<string, unknown>[]
+}
+
+/**
+ * Active store locations
+ */
+export async function getStoreLocations() {
+  const sb = await createClient()
+
+  const { data, error } = await sb
+    .from('store_locations')
+    .select('id, code, name, description, parent_id, is_active')
+    .eq('is_active', true)
+    .order('code', { ascending: true })
+
+  if (error) throw new Error(`getStoreLocations: ${error.message}`)
+  return (data ?? []) as unknown as Record<string, unknown>[]
+}
+
+/**
+ * Distinct non-null categories from inventory_pins
+ */
+export async function getInventoryCategories(): Promise<string[]> {
+  const sb = await createClient()
+
+  const { data, error } = await sb
+    .from('inventory_pins')
+    .select('category')
+    .not('category', 'is', null)
+    .order('category', { ascending: true })
+
+  if (error) throw new Error(`getInventoryCategories: ${error.message}`)
+
+  const categories = Array.from(
+    new Set((data ?? []).map((row: any) => row.category as string).filter(Boolean))
+  )
+  return categories
+}
+
+/**
+ * PINs available for issuance: current_stock > 0 and status = 'approved'
+ */
+export async function getPinsForIssuance(search?: string): Promise<StockRow[]> {
+  const sb = await createClient()
+
+  let query = sb
+    .from('v_stock_balance')
+    .select('*')
+    .eq('status', 'approved')
+    .gt('current_stock', 0)
+    .order('pin_number', { ascending: true })
+
+  if (search) {
+    query = query.or(
+      `description.ilike.%${search}%,part_number.ilike.%${search}%,pin_number.ilike.%${search}%`
+    )
+  }
+
   const { data, error } = await query
-  if (error) throw new Error(error.message)
-  return data ?? []
+  if (error) throw new Error(`getPinsForIssuance: ${error.message}`)
+  return (data ?? []) as unknown as StockRow[]
 }

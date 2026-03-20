@@ -1,73 +1,181 @@
-import { createClient } from "@/lib/supabase/server";
+'use server'
+import { createClient } from '@/lib/supabase/server'
+import type { SubmitInspectionInput } from '@/lib/validations/qc'
 
-export async function createQCInspection(input: {
-  delivery_id: string;
-  delivery_item_id?: string;
-  inspector_id: string;
-  pass_criteria?: string;
-}) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("qc_inspections")
-    .insert({ ...input, status: "qc_pending" })
-    .select().single();
-  if (error) throw new Error(error.message);
-  return data;
-}
-
-export async function startInspection(id: string, actorId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("qc_inspections")
-    .update({ status: "in_progress", inspection_date: new Date().toISOString() })
-    .eq("id", id).eq("status", "qc_pending")
-    .select().single();
-  if (error) throw new Error(error.message);
-  await supabase.from("workflow_history").insert({
-    entity_type: "qc_inspection", entity_id: id,
-    from_status: "qc_pending", to_status: "in_progress",
-    event: "start_inspection", actor_id: actorId,
-  });
-  return data;
-}
-
-export async function submitInspectionResult(
-  id: string,
-  actorId: string,
-  result: "pass" | "fail" | "conditional",
-  remarks?: string,
-  defects?: Array<{
-    defect_code?: string;
-    description: string;
-    severity: "minor" | "major" | "critical";
-    quantity_affected?: number;
-    disposition?: string;
-  }>
+/**
+ * Create a new QC inspection record for a delivery (in_progress state).
+ */
+export async function dbStartInspection(
+  deliveryId: string,
+  remarks: string | undefined,
+  passCriteria: string | undefined,
+  operatorId: string
 ) {
-  const supabase = await createClient();
-  const toStatus = result === "pass" ? "qc_passed" : result === "fail" ? "qc_failed" : "qc_conditional";
-  const fromStatus = "in_progress";
+  const sb = await createClient()
 
-  const { data, error } = await supabase
-    .from("qc_inspections")
-    .update({ result, status: toStatus, remarks })
-    .eq("id", id)
-    .select().single();
-  if (error) throw new Error(error.message);
+  const { data, error } = await sb
+    .from('qc_inspections')
+    .insert({
+      delivery_id: deliveryId,
+      inspector_id: operatorId,
+      status: 'qc_pending',
+      remarks: remarks ?? null,
+      pass_criteria: passCriteria ?? null,
+      inspection_date: new Date().toISOString(),
+    })
+    .select()
+    .single()
 
-  if (defects && defects.length > 0) {
-    const { error: defectError } = await supabase
-      .from("qc_defects")
-      .insert(defects.map(d => ({ ...d, inspection_id: id })));
-    if (defectError) throw new Error(defectError.message);
+  if (error) throw new Error(error.message)
+  return data
+}
+
+/**
+ * Submit item-level results, compute overall pass/fail/conditional,
+ * insert defects, and update delivery status accordingly.
+ */
+export async function dbSubmitInspectionResult(
+  input: SubmitInspectionInput,
+  operatorId: string
+) {
+  const sb = await createClient()
+
+  // Compute overall result from items
+  const totalAccepted = input.items.reduce((s, i) => s + i.accepted_qty, 0)
+  const totalRejected = input.items.reduce((s, i) => s + i.rejected_qty, 0)
+
+  let result: 'pass' | 'fail' | 'conditional'
+  if (totalRejected === 0) result = 'pass'
+  else if (totalAccepted === 0) result = 'fail'
+  else result = 'conditional'
+
+  // Determine delivery status
+  const deliveryStatus =
+    result === 'pass' ? 'qc_passed' : result === 'fail' ? 'qc_failed' : 'qc_conditional'
+
+  // Update inspection record
+  const { data: inspection, error: iErr } = await sb
+    .from('qc_inspections')
+    .update({
+      result,
+      status: deliveryStatus,
+      accepted_qty: totalAccepted,
+      rejected_qty: totalRejected,
+      remarks: input.overall_remarks ?? null,
+    })
+    .eq('id', input.inspection_id)
+    .select()
+    .single()
+  if (iErr) throw new Error(iErr.message)
+
+  // Insert defects for each item that has them
+  const defectRows: any[] = []
+  for (const item of input.items) {
+    for (const defect of item.defects) {
+      defectRows.push({
+        inspection_id: input.inspection_id,
+        defect_code: defect.defect_code ?? null,
+        description: defect.description,
+        severity: defect.severity,
+        quantity_affected: defect.quantity_affected ?? item.rejected_qty,
+        disposition: defect.disposition,
+      })
+    }
+  }
+  if (defectRows.length > 0) {
+    const { error: defErr } = await sb.from('qc_defects').insert(defectRows)
+    if (defErr) throw new Error(`qc_defects insert: ${defErr.message}`)
   }
 
-  await supabase.from("workflow_history").insert({
-    entity_type: "qc_inspection", entity_id: id,
-    from_status: fromStatus, to_status: toStatus,
-    event: result === "pass" ? "pass_inspection" : result === "fail" ? "fail_inspection" : "conditional_inspection",
-    actor_id: actorId, comment: remarks,
-  });
+  // Fetch delivery_id from the inspection record
+  const { data: inspectionRow } = await sb
+    .from('qc_inspections')
+    .select('delivery_id')
+    .eq('id', input.inspection_id)
+    .single() as any
 
-  return data;
+  if (inspectionRow?.delivery_id) {
+    await sb
+      .from('deliveries')
+      .update({ status: deliveryStatus })
+      .eq('id', inspectionRow.delivery_id)
+
+    await sb.from('workflow_history').insert({
+      entity_type: 'delivery',
+      entity_id: inspectionRow.delivery_id,
+      from_status: 'qc_pending',
+      to_status: deliveryStatus,
+      event:
+        result === 'pass'
+          ? 'pass_inspection'
+          : result === 'fail'
+          ? 'fail_inspection'
+          : 'conditional_inspection',
+      actor_id: operatorId,
+    })
+  }
+
+  return { inspection, result, totalAccepted, totalRejected }
+}
+
+/**
+ * Create a QC return record for rejected goods that need to go back to vendor.
+ */
+export async function dbCreateQCReturn(
+  returnData: {
+    inspection_id: string
+    delivery_id: string
+    vendor_id?: string
+    po_id?: string
+    quantity_returned: number
+    return_reason: string
+    return_notes?: string
+    replacement_expected?: string | null
+  },
+  operatorId: string
+) {
+  const sb = await createClient()
+  const returnRef = `QCRET-${Date.now()}`
+
+  const { data, error } = await sb
+    .from('qc_returns')
+    .insert({
+      ...returnData,
+      vendor_id: returnData.vendor_id ?? null,
+      po_id: returnData.po_id ?? null,
+      return_notes: returnData.return_notes ?? null,
+      replacement_expected: returnData.replacement_expected ?? null,
+      return_ref: returnRef,
+      status: 'pending',
+      created_by: operatorId,
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
+}
+
+/**
+ * Advance a QC return through its status lifecycle.
+ */
+export async function dbUpdateQCReturnStatus(
+  returnId: string,
+  status: string,
+  replacementDeliveryId?: string,
+  operatorId?: string
+): Promise<void> {
+  const sb = await createClient()
+
+  const { error } = await sb
+    .from('qc_returns')
+    .update({
+      status,
+      ...(replacementDeliveryId ? { replacement_delivery_id: replacementDeliveryId } : {}),
+      ...(status === 'shipped_to_vendor' ? { returned_at: new Date().toISOString() } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', returnId)
+
+  if (error) throw new Error(error.message)
 }

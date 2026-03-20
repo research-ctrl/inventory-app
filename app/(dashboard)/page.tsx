@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ClipboardList, CheckSquare, ShoppingCart, Truck, Plus } from 'lucide-react'
 import { PageHeader } from '@/components/shared/page-header'
+import { createClient } from "@/lib/supabase/server"
 
 export const metadata = { title: 'Dashboard | SMLS' }
 
@@ -65,42 +66,6 @@ function QuickAction({ label, href, icon: Icon, description }: QuickActionProps)
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-// Placeholder stat values — wire up real queries once data layer is complete
-const STATS: StatCardProps[] = [
-  {
-    label: 'Total Requirements',
-    value: 142,
-    icon: ClipboardList,
-    href: '/requirements',
-    color: 'text-blue-700',
-    iconBg: 'bg-blue-50',
-  },
-  {
-    label: 'Pending Approvals',
-    value: 18,
-    icon: CheckSquare,
-    href: '/approvals',
-    color: 'text-amber-600',
-    iconBg: 'bg-amber-50',
-  },
-  {
-    label: 'Open POs',
-    value: 34,
-    icon: ShoppingCart,
-    href: '/procurement/purchase-orders',
-    color: 'text-indigo-700',
-    iconBg: 'bg-indigo-50',
-  },
-  {
-    label: 'Active Deliveries',
-    value: 9,
-    icon: Truck,
-    href: '/procurement/deliveries',
-    color: 'text-teal-700',
-    iconBg: 'bg-teal-50',
-  },
-]
-
 const QUICK_ACTIONS: QuickActionProps[] = [
   {
     label: 'New Requirement',
@@ -116,7 +81,64 @@ const QUICK_ACTIONS: QuickActionProps[] = [
   },
 ]
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const supabase = await createClient()
+
+  // Real-time Dashboard Queries
+  const { count: totalReqs } = await supabase
+    .from('requirements')
+    .select('*', { count: 'exact', head: true })
+
+  const { count: pendingApprovals } = await supabase
+    .from('requirements')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending_approval')
+    
+  const { count: openPOs } = await supabase
+    .from('purchase_orders')
+    .select('*', { count: 'exact', head: true })
+    .not('status', 'in', '("closed","cancelled")')
+    
+  const { count: activeDeliveries } = await supabase
+    .from('deliveries')
+    .select('*', { count: 'exact', head: true })
+    .not('status', 'in', '("received","qc_passed","completed")')
+
+  const STATS: StatCardProps[] = [
+    {
+      label: 'Total Requirements',
+      value: totalReqs || 0,
+      icon: ClipboardList,
+      href: '/requirements',
+      color: 'text-blue-700',
+      iconBg: 'bg-blue-50',
+    },
+    {
+      label: 'Pending Approvals',
+      value: pendingApprovals || 0,
+      icon: CheckSquare,
+      href: '/approvals',
+      color: 'text-amber-600',
+      iconBg: 'bg-amber-50',
+    },
+    {
+      label: 'Open POs',
+      value: openPOs || 0,
+      icon: ShoppingCart,
+      href: '/procurement/purchase-orders',
+      color: 'text-indigo-700',
+      iconBg: 'bg-indigo-50',
+    },
+    {
+      label: 'Active Deliveries',
+      value: activeDeliveries || 0,
+      icon: Truck,
+      href: '/procurement/deliveries',
+      color: 'text-teal-700',
+      iconBg: 'bg-teal-50',
+    },
+  ]
+
   return (
     <div className="space-y-8">
       <PageHeader

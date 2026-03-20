@@ -40,7 +40,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { label: 'Dashboard', href: '/', icon: LayoutDashboard },
+      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     ],
   },
   {
@@ -89,7 +89,7 @@ export function Sidebar({ role }: SidebarProps) {
   const pathname = usePathname()
 
   function isActive(href: string): boolean {
-    if (href === '/') return pathname === '/'
+    if (href === '/dashboard') return pathname === '/dashboard' || pathname === '/'
     return pathname === href || pathname.startsWith(href + '/')
   }
 

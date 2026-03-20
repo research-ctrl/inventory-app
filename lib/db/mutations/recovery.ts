@@ -1,134 +1,186 @@
-import { createClient } from "@/lib/supabase/server";
-import { recordTransaction } from "./inventory";
+'use server'
+import { createClient } from '@/lib/supabase/server'
+import type {
+  CreateRecoveryInput,
+  AssessRecoveryInput,
+  CreateDerivedPinInput,
+} from '@/lib/validations/recovery'
 
-export async function createRecovery(input: {
-  issue_id: string;
-  pin_id: string;
-  quantity_returned: number;
-  recovery_location_id?: string;
-}) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("recoveries")
-    .insert({ ...input, status: "pending_assessment" })
-    .select().single();
-  if (error) throw new Error(error.message);
-
-  await supabase.from("workflow_history").insert({
-    entity_type: "recovery", entity_id: data.id,
-    from_status: "pending_assessment", to_status: "pending_assessment",
-    event: "submit", actor_id: input.pin_id,
-  });
-  return data;
+/**
+ * Sum all transaction quantities for a PIN to get current stock level.
+ */
+async function getCurrentStock(sb: any, pinId: string): Promise<number> {
+  const { data } = await sb
+    .from('inventory_transactions')
+    .select('quantity')
+    .eq('pin_id', pinId)
+  return (data ?? []).reduce(
+    (sum: number, t: any) => sum + (t.quantity ?? 0),
+    0
+  )
 }
 
-export async function assessRecovery(
-  id: string,
-  actorId: string,
-  assessment: {
-    outcome: "reuse" | "repair" | "scrap" | "sell";
-    condition_grade: "A" | "B" | "C" | "D" | "scrap";
-    condition_notes?: string;
-    disposition_notes?: string;
-  }
+/**
+ * Open a new recovery record for returned material pending assessment.
+ */
+export async function dbCreateRecovery(
+  input: CreateRecoveryInput,
+  operatorId: string
 ) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("recoveries")
-    .update({
-      ...assessment,
-      status: "assessed",
-      assessed_by: actorId,
-      assessed_at: new Date().toISOString(),
+  const sb = await createClient()
+
+  const { data, error } = await sb
+    .from('recoveries')
+    .insert({
+      issue_id: input.issue_id,
+      pin_id: input.pin_id,
+      quantity_returned: input.quantity_returned,
+      status: 'pending_assessment',
+      recovery_location_id: input.recovery_location_id ?? null,
+      condition_notes: input.condition_notes ?? null,
+      recovered_at: new Date().toISOString(),
     })
-    .eq("id", id).eq("status", "pending_assessment")
-    .select().single();
-  if (error) throw new Error(error.message);
-  await supabase.from("workflow_history").insert({
-    entity_type: "recovery", entity_id: id,
-    from_status: "pending_assessment", to_status: "assessed",
-    event: "assess", actor_id: actorId,
-    comment: assessment.condition_notes,
-  });
-  return data;
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+  return data
 }
 
-export async function completeRecoveryWithReuse(
-  id: string,
-  actorId: string,
-  newPinData?: {
-    description: string;
-    unit: string;
-    location_id: string;
-    category?: string;
-  }
+/**
+ * Assess a recovery: set condition grade, outcome, and update status.
+ * If outcome is scrap, immediately write off the stock.
+ */
+export async function dbAssessRecovery(
+  input: AssessRecoveryInput,
+  operatorId: string
 ) {
-  const supabase = await createClient();
-  const { data: rec } = await supabase.from("recoveries").select("pin_id, quantity_returned").eq("id", id).single();
-  if (!rec) throw new Error("Recovery not found");
+  const sb = await createClient()
 
-  let derivedPinId: string | null = null;
+  const { data: recovery } = await sb
+    .from('recoveries')
+    .select('*')
+    .eq('id', input.recovery_id)
+    .single() as any
+  if (!recovery) throw new Error('Recovery not found')
 
-  if (newPinData) {
-    // Create a derived PIN for the returned material
-    const { data: newPin, error: pinError } = await supabase
-      .from("inventory_pins")
-      .insert({
-        ...newPinData,
-        parent_pin_id: rec.pin_id,
-        origin_type: "recovery",
-        origin_reference: id,
-        status: "approved",
-      })
-      .select().single();
-    if (pinError) throw new Error(pinError.message);
-    derivedPinId = newPin.id;
+  const newStatus =
+    input.outcome === 'reuse'
+      ? 'assessed'
+      : input.outcome === 'repair'
+      ? 'repair_pending'
+      : input.outcome === 'scrap'
+      ? 'scrapped'
+      : 'assessed' // sell
 
-    await recordTransaction({
-      pin_id: newPin.id,
-      transaction_type: "return",
-      quantity: rec.quantity_returned,
-      reference_type: "recovery",
-      reference_id: id,
-      actor_id: actorId,
-      notes: `Material recovered and re-entered stock via ${id}`,
-    });
+  const { error: assessErr } = await sb
+    .from('recoveries')
+    .update({
+      condition_grade: input.condition_grade,
+      condition_notes: input.condition_notes ?? null,
+      outcome: input.outcome,
+      status: newStatus,
+      disposition_notes: input.disposition_notes ?? null,
+      assessed_by: operatorId,
+      assessed_at: new Date().toISOString(),
+      recovery_location_id:
+        input.recovery_location_id ?? recovery.recovery_location_id,
+    })
+    .eq('id', input.recovery_id)
+  if (assessErr) throw new Error(assessErr.message)
+
+  // If scrap outcome: write off the material from stock
+  if (input.outcome === 'scrap' || input.condition_grade === 'scrap') {
+    const currentStock = await getCurrentStock(sb, recovery.pin_id)
+    const newStock = Math.max(0, currentStock - recovery.quantity_returned)
+
+    const { error: txErr } = await sb.from('inventory_transactions').insert({
+      pin_id: recovery.pin_id,
+      transaction_type: 'write_off',
+      quantity: -recovery.quantity_returned,
+      quantity_before: currentStock,
+      quantity_after: newStock,
+      reference_type: 'recovery',
+      reference_id: recovery.id,
+      notes: `Scrapped from recovery ${recovery.recovery_ref}`,
+      actor_id: operatorId,
+    })
+    if (txErr) throw new Error(txErr.message)
+
+    // Mark PIN scrapped if stock is exhausted
+    if (currentStock - recovery.quantity_returned <= 0) {
+      await sb
+        .from('inventory_pins')
+        .update({ status: 'scrapped' })
+        .eq('id', recovery.pin_id)
+    }
   }
 
-  const { data, error } = await supabase
-    .from("recoveries")
-    .update({ status: "assessed", derived_pin_id: derivedPinId, recovered_at: new Date().toISOString() })
-    .eq("id", id)
-    .select().single();
-  if (error) throw new Error(error.message);
-
-  if (derivedPinId) {
-    await supabase.from("inventory_pins")
-      .update({ derived_from_recovery_id: id })
-      .eq("id", derivedPinId);
-  }
-
-  await supabase.from("workflow_history").insert({
-    entity_type: "recovery", entity_id: id,
-    from_status: "assessed", to_status: "assessed",
-    event: "mark_reuse", actor_id: actorId,
-    metadata: { derived_pin_id: derivedPinId },
-  });
-  return { recovery: data, derivedPinId };
+  return { outcome: input.outcome, status: newStatus }
 }
 
-export async function scrapRecovery(id: string, actorId: string, notes?: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("recoveries")
-    .update({ status: "scrapped", disposition_notes: notes })
-    .eq("id", id).in("status", ["assessed", "pending_assessment"])
-    .select().single();
-  if (error) throw new Error(error.message);
-  await supabase.from("workflow_history").insert({
-    entity_type: "recovery", entity_id: id,
-    from_status: "assessed", to_status: "scrapped",
-    event: "scrap_material", actor_id: actorId, comment: notes,
-  });
-  return data;
+/**
+ * Create a derived PIN from a recovery and re-stock it.
+ * Links the derived PIN back to the recovery record and closes the recovery.
+ */
+export async function dbCreateDerivedPin(
+  input: CreateDerivedPinInput,
+  operatorId: string
+) {
+  const sb = await createClient()
+
+  // 1. Create the new derived PIN (pin_number auto-generated by trigger)
+  const { data: pin, error: pinErr } = await sb
+    .from('inventory_pins')
+    .insert({
+      description: input.description,
+      part_number: input.part_number ?? null,
+      category: input.category,
+      unit: input.unit,
+      location_id: input.location_id,
+      status: 'approved',
+      origin_type: 'recovery',
+      parent_pin_id: input.parent_pin_id,
+      derived_from_recovery_id: input.recovery_id,
+      origin_reference: input.recovery_id,
+    })
+    .select()
+    .single()
+  if (pinErr) throw new Error(`Derived PIN: ${pinErr.message}`)
+
+  // 2. Receipt transaction for re-stocked quantity
+  const { error: txErr } = await sb.from('inventory_transactions').insert({
+    pin_id: pin.id,
+    transaction_type: 'receipt',
+    quantity: input.quantity,
+    quantity_before: 0,
+    quantity_after: input.quantity,
+    reference_type: 'recovery',
+    reference_id: input.recovery_id,
+    unit_cost: input.unit_cost ?? null,
+    notes: `Derived from recovery — parent PIN ${input.parent_pin_id}`,
+    actor_id: operatorId,
+  })
+  if (txErr) throw new Error(`Transaction: ${txErr.message}`)
+
+  // 3. Link derived pin to recovery and close it
+  const { error: recErr } = await sb
+    .from('recoveries')
+    .update({
+      derived_pin_id: pin.id,
+      status: 'closed',
+    })
+    .eq('id', input.recovery_id)
+  if (recErr) throw new Error(recErr.message)
+
+  await sb.from('workflow_history').insert({
+    entity_type: 'recovery',
+    entity_id: input.recovery_id,
+    from_status: 'assessed',
+    to_status: 'closed',
+    event: 'accept_into_inventory',
+    actor_id: operatorId,
+  })
+
+  return pin
 }

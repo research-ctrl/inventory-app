@@ -92,6 +92,18 @@
 --    both on a fresh DB and on re-run.
 -- ============================================================
 
+INSERT INTO auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'admin@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'john.procurement@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'mary.officer@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'sam.stores@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'tony.keeper@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000006', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'qc.alice@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000007', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'eng.bob@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
+  ('00000000-0000-0000-0000-000000000008', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'finance.carol@smls.com', crypt('password123', gen_salt('bf')), now(), '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00')
+ON CONFLICT (id) DO NOTHING;
+
 INSERT INTO public.profiles (id, email, full_name, role, department, employee_id, phone, is_active, created_at, updated_at)
 VALUES
   ('00000000-0000-0000-0000-000000000001', 'admin@smls.com',             'System Administrator',  'super_admin',           'IT',          'EMP-001', '+1-555-0101', true, '2024-01-15 08:00:00+00', '2024-01-15 08:00:00+00'),
@@ -1146,74 +1158,42 @@ ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================
 -- 20. SOP DOCUMENTS
---     The sop_documents table is not in the current migrations.
---     This block creates it if absent, then inserts seed rows.
+--     Inserts test data into the sop_documents table created in 008_ai_support.sql.
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS public.sop_documents (
-  id           UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-  title        TEXT        NOT NULL,
-  category     TEXT        NOT NULL
-                             CHECK (category IN ('procurement', 'qc', 'stores', 'safety', 'operations', 'general')),
-  document_ref TEXT        UNIQUE,
-  version      TEXT        NOT NULL DEFAULT '1.0',
-  status       TEXT        NOT NULL DEFAULT 'active'
-                             CHECK (status IN ('draft', 'active', 'superseded', 'archived')),
-  body         TEXT,
-  created_by   UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
-  approved_by  UUID        REFERENCES public.profiles(id) ON DELETE SET NULL,
-  approved_at  TIMESTAMPTZ,
-  effective_date DATE,
-  review_date    DATE,
-  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
-INSERT INTO public.sop_documents (id, title, category, document_ref, version, status, body, created_by, approved_by, approved_at, effective_date, review_date, created_at, updated_at)
+INSERT INTO public.sop_documents (id, title, category, version, is_active, content, created_by, effective_date, created_at, updated_at)
 VALUES
   (
     '00000000-0000-0000-0000-000000000201',
     'Procurement Standard Operating Procedure',
     'procurement',
-    'SOP-PROC-001',
     '2.1',
-    'active',
+    true,
     'This SOP defines the end-to-end procurement process for the Shipyard Material Lifecycle System, from requirement creation through vendor selection, purchase order approval, and delivery receipt.',
     '00000000-0000-0000-0000-000000000002',  -- john.procurement
-    '00000000-0000-0000-0000-000000000001',  -- admin
-    '2024-06-01 10:00:00+00',
     '2024-07-01',
-    '2025-07-01',
     '2024-05-15 09:00:00+00', '2024-06-01 10:00:00+00'
   ),
   (
     '00000000-0000-0000-0000-000000000202',
     'QC Inspection Procedure',
     'qc',
-    'SOP-QC-001',
     '1.3',
-    'active',
+    true,
     'This procedure defines the quality control inspection process for incoming materials. It covers sampling plans, acceptance criteria, defect classification, conditional acceptance, and disposition of non-conforming materials.',
     '00000000-0000-0000-0000-000000000006',  -- qc.alice
-    '00000000-0000-0000-0000-000000000001',  -- admin
-    '2024-08-15 10:00:00+00',
     '2024-09-01',
-    '2025-09-01',
     '2024-08-01 09:00:00+00', '2024-08-15 10:00:00+00'
   ),
   (
     '00000000-0000-0000-0000-000000000203',
     'Store Receiving Procedure',
     'stores',
-    'SOP-STR-001',
     '1.0',
-    'active',
+    true,
     'This SOP describes the process for receiving and booking-in materials at the shipyard stores, including checking delivery documents, physical count verification, condition assessment, location assignment, and system entry.',
     '00000000-0000-0000-0000-000000000004',  -- sam.stores
-    '00000000-0000-0000-0000-000000000001',  -- admin
-    '2024-09-01 10:00:00+00',
     '2024-10-01',
-    '2025-10-01',
     '2024-08-20 09:00:00+00', '2024-09-01 10:00:00+00'
   )
 ON CONFLICT (id) DO NOTHING;

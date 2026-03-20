@@ -1,12 +1,12 @@
 import type { AIRequest } from "../provider-router";
 
-const GROK_API_URL = "https://api.x.ai/v1/chat/completions";
-const GROK_MODEL = "grok-3-latest";
+const MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions";
+const MISTRAL_MODEL = "mistral-large-latest";
 
-export async function generateWithGrok(request: AIRequest): Promise<string> {
-  const apiKey = process.env.GROK_API_KEY;
-  if (!apiKey || apiKey === "your-grok-api-key") {
-    throw new Error("GROK_API_KEY is not configured. Please add a valid Grok API key.");
+export async function generateWithMistral(request: AIRequest): Promise<string> {
+  const apiKey = process.env.MISTRAL_API_KEY;
+  if (!apiKey) {
+    throw new Error("MISTRAL_API_KEY is not configured.");
   }
 
   const messages = request.messages.map((m) => ({
@@ -14,14 +14,14 @@ export async function generateWithGrok(request: AIRequest): Promise<string> {
     content: m.content,
   }));
 
-  const response = await fetch(GROK_API_URL, {
+  const response = await fetch(MISTRAL_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: GROK_MODEL,
+      model: MISTRAL_MODEL,
       messages,
       temperature: 0.7,
       max_tokens: 4096,
@@ -30,11 +30,11 @@ export async function generateWithGrok(request: AIRequest): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`Grok API error (${response.status}): ${errorText}`);
+    throw new Error(`Mistral API error (${response.status}): ${errorText}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Grok returned an empty response");
+  if (!content) throw new Error("Mistral returned an empty response");
   return content;
 }

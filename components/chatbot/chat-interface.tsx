@@ -1,17 +1,51 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Sparkles, Trash2 } from "lucide-react";
+import { Send, Bot, User, Loader2, Sparkles, Trash2, ChevronDown } from "lucide-react";
+
+type AIProvider = "gemini" | "grok" | "mistral";
+
+interface ProviderOption {
+  id: AIProvider;
+  label: string;
+  description: string;
+  color: string;
+  dot: string;
+}
+
+const PROVIDERS: ProviderOption[] = [
+  {
+    id: "gemini",
+    label: "Gemini 2.0 Flash",
+    description: "Google · Web search enabled",
+    color: "text-blue-700",
+    dot: "bg-blue-500",
+  },
+  {
+    id: "mistral",
+    label: "Mistral Large",
+    description: "Mistral AI · Fast & accurate",
+    color: "text-orange-700",
+    dot: "bg-orange-500",
+  },
+  {
+    id: "grok",
+    label: "Grok 3",
+    description: "xAI · Requires API key",
+    color: "text-purple-700",
+    dot: "bg-purple-500",
+  },
+];
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  provider?: AIProvider;
 }
 
 function formatMarkdown(text: string): string {
-  // Basic markdown to HTML conversion for display
   return text
     .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.*?)\*/g, "<em>$1</em>")
@@ -24,16 +58,41 @@ function formatMarkdown(text: string): string {
     .replace(/\n/g, "<br />");
 }
 
+function ProviderBadge({ provider }: { provider: AIProvider }) {
+  const opt = PROVIDERS.find((p) => p.id === provider);
+  if (!opt) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[9px] font-medium text-gray-400 mt-1">
+      <span className={`inline-block w-1.5 h-1.5 rounded-full ${opt.dot}`} />
+      {opt.label}
+    </span>
+  );
+}
+
 export function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<AIProvider>("gemini");
+  const [providerMenuOpen, setProviderMenuOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Close provider menu on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setProviderMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   async function handleSend() {
     const trimmed = input.trim();
@@ -56,6 +115,7 @@ export function ChatInterface() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: trimmed,
+          provider: selectedProvider,
           history: messages.map((m) => ({
             role: m.role,
             content: m.content,
@@ -74,6 +134,7 @@ export function ChatInterface() {
         role: "assistant",
         content: data.response,
         timestamp: new Date(),
+        provider: selectedProvider,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -83,6 +144,7 @@ export function ChatInterface() {
         role: "assistant",
         content: `❌ Error: ${error.message}. Please try again.`,
         timestamp: new Date(),
+        provider: selectedProvider,
       };
       setMessages((prev) => [...prev, errorMessage]);
     } finally {
@@ -102,6 +164,8 @@ export function ChatInterface() {
     setMessages([]);
   }
 
+  const activeProvider = PROVIDERS.find((p) => p.id === selectedProvider)!;
+
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)] bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
       {/* Header */}
@@ -112,18 +176,62 @@ export function ChatInterface() {
           </div>
           <div>
             <h2 className="font-semibold text-gray-900">SMLS AI Assistant</h2>
-            <p className="text-xs text-gray-500">Read-only access to all system data</p>
+            <p className="text-xs text-gray-500">Read-only access · Internet search enabled</p>
           </div>
         </div>
-        {messages.length > 0 && (
-          <button
-            onClick={clearChat}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Clear
-          </button>
-        )}
+
+        <div className="flex items-center gap-2">
+          {/* Model Selector */}
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setProviderMenuOpen((o) => !o)}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              <span className={`w-2 h-2 rounded-full ${activeProvider.dot}`} />
+              {activeProvider.label}
+              <ChevronDown className="h-3 w-3 text-gray-400" />
+            </button>
+
+            {providerMenuOpen && (
+              <div className="absolute right-0 top-full mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                <p className="px-3 py-2 text-[10px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                  Select AI Model
+                </p>
+                {PROVIDERS.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      setSelectedProvider(p.id);
+                      setProviderMenuOpen(false);
+                    }}
+                    className={`w-full flex items-start gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors ${
+                      selectedProvider === p.id ? "bg-blue-50" : ""
+                    }`}
+                  >
+                    <span className={`mt-1 w-2 h-2 rounded-full shrink-0 ${p.dot}`} />
+                    <div>
+                      <p className={`text-xs font-medium ${p.color}`}>{p.label}</p>
+                      <p className="text-[10px] text-gray-400">{p.description}</p>
+                    </div>
+                    {selectedProvider === p.id && (
+                      <span className="ml-auto text-blue-600 text-xs">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {messages.length > 0 && (
+            <button
+              onClick={clearChat}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Messages */}
@@ -180,10 +288,13 @@ export function ChatInterface() {
               }`}
             >
               {msg.role === "assistant" ? (
-                <div
-                  className="prose prose-sm max-w-none [&_li]:my-0.5 [&_code]:text-blue-700"
-                  dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
-                />
+                <>
+                  <div
+                    className="prose prose-sm max-w-none [&_li]:my-0.5 [&_code]:text-blue-700"
+                    dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
+                  />
+                  {msg.provider && <ProviderBadge provider={msg.provider} />}
+                </>
               ) : (
                 <p className="whitespace-pre-wrap">{msg.content}</p>
               )}
@@ -214,7 +325,10 @@ export function ChatInterface() {
             <div className="bg-gray-50 border border-gray-100 rounded-2xl rounded-bl-md px-4 py-3">
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing system data...
+                <span>
+                  Thinking with{" "}
+                  <span className="font-medium">{activeProvider.label}</span>…
+                </span>
               </div>
             </div>
           </div>

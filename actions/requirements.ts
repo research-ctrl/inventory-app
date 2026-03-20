@@ -9,6 +9,12 @@ import { dbCreateRequirement, dbTransitionRequirement, dbUpdateRequirement } fro
 import { canTransition } from '@/lib/workflow/transitions'
 import type { CreateRequirementInput } from '@/lib/validations/requirement'
 
+/** Roles allowed to change urgency inline */
+const URGENCY_EDIT_ROLES = [
+  'super_admin', 'admin', 'procurement_manager', 'procurement_officer',
+  'engineer', 'store_manager',
+] as const
+
 export async function createRequirement(formData: CreateRequirementInput) {
   try {
     const { profile, role } = await getServerSession()
@@ -31,6 +37,23 @@ export async function updateRequirement(id: string, formData: Partial<CreateRequ
     revalidatePath('/requirements')
     revalidatePath(`/requirements/${id}`)
     return { success: true, data }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+export async function updateRequirementUrgency(id: string, urgency: 'routine' | 'urgent' | 'critical') {
+  try {
+    const { role } = await getServerSession()
+    if (!(URGENCY_EDIT_ROLES as readonly string[]).includes(role)) {
+      return { success: false, error: 'Insufficient permissions to change urgency' }
+    }
+    const sb = await createClient()
+    const { error } = await sb.from('requirements').update({ urgency } as any).eq('id', id)
+    if (error) throw new Error(error.message)
+    revalidatePath('/requirements')
+    revalidatePath(`/requirements/${id}`)
+    return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message }
   }

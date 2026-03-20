@@ -1,13 +1,24 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/server';
 import { getRequirements } from '@/lib/db/queries/requirements';
 import RequirementsTable from '@/components/requirements/requirements-table';
 import { PageHeader } from '@/components/shared/page-header';
 import { TableSkeleton } from '@/components/shared/loading-skeleton';
+import type { Role } from '@/lib/auth/roles';
 
 export const metadata = { title: 'Requirements | SMLS' };
 
 export default async function RequirementsPage() {
+  const sb = await createClient();
+  const { data: { user } } = await sb.auth.getUser();
+
+  const { data: profile } = user
+    ? await sb.from('profiles').select('role').eq('id', user.id).single()
+    : { data: null };
+
+  const currentRole: Role = (profile?.role as Role) ?? 'viewer';
+
   const requirements = await getRequirements();
 
   return (
@@ -25,7 +36,7 @@ export default async function RequirementsPage() {
       </PageHeader>
 
       <Suspense fallback={<TableSkeleton />}>
-        <RequirementsTable data={requirements} />
+        <RequirementsTable data={requirements} currentRole={currentRole} />
       </Suspense>
     </div>
   );

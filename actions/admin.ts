@@ -2,16 +2,39 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getServerSession } from '@/lib/auth/session'
+import { createClient } from '@/lib/supabase/server'
 import type { Role } from '@/lib/auth/roles'
 
-/** Only super_admin and admin may call these actions */
-async function requireAdminSession() {
-  const session = await getServerSession()
-  if (!['super_admin', 'admin'].includes(session.role)) {
+/** Check admin access — also allows if no admins exist yet (bootstrap mode) */
+async function requireAdminOrBootstrap() {
+  const sb = await createClient()
+  const { data: { user } } = await sb.auth.getUser()
+  if (!user) throw new Error('Unauthenticated')
+
+  const adminSb = createAdminClient()
+
+  // Check if current user is admin
+  const { data: profile } = await adminSb
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isAdmin = ['super_admin', 'admin'].includes(profile?.role ?? '')
+
+  // Count admins in system
+  const { count } = await adminSb
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .in('role', ['super_admin', 'admin'])
+
+  const isBootstrap = (count ?? 0) === 0
+
+  if (!isAdmin && !isBootstrap) {
     throw new Error('Insufficient permissions — admin access required')
   }
-  return session
+
+  return { userId: user.id, isAdmin, isBootstrap }
 }
 
 /**
@@ -28,15 +51,19 @@ export async function adminUpdateProfile(
   }
 ) {
   try {
-    await requireAdminSession()
+    await requireAdminOrBootstrap()
     const sb = createAdminClient()
 
-    // Only include defined fields
+    // Build only defined, non-empty fields
     const payload: Record<string, string> = {}
-    if (updates.full_name !== undefined)   payload.full_name   = updates.full_name
+    if (updates.full_name !== undefined)    payload.full_name    = updates.full_name
     if (updates.phone_number !== undefined) payload.phone_number = updates.phone_number
-    if (updates.designation !== undefined) payload.designation = updates.designation
-    if (updates.role !== undefined)        payload.role        = updates.role
+    if (updates.designation !== undefined)  payload.designation  = updates.designation
+    if (updates.role !== undefined)         payload.role         = updates.role
+
+    if (Object.keys(payload).length === 0) {
+      return { success: true } // nothing to update
+    }
 
     const { error } = await sb
       .from('profiles')
@@ -53,18 +80,17 @@ export async function adminUpdateProfile(
 }
 
 /**
- * List all profiles (admin only).
- * Uses service-role client so RLS doesn't block access.
+ * List all profiles (admin or bootstrap only).
  */
 export async function adminListProfiles() {
   try {
-    await requireAdminSession()
+    await requireAdminOrBootstrap()
     const sb = createAdminClient()
 
-    const { data, error } = await sb
+    const { data, error } = await (sb
       .from('profiles')
       .select('id, full_name, email, role, department, phone_number, designation')
-      .order('full_name', { ascending: true })
+      .order('full_name', { ascending: true }) as any)
 
     if (error) throw new Error(error.message)
     return { success: true, data: data ?? [] }

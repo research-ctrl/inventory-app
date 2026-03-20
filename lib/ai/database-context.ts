@@ -76,6 +76,26 @@ export async function getDatabaseContext(): Promise<string> {
     .select("id, code, name, is_active")
     .order("name");
 
+  // ─── Store Locations ─────────────────────────────────────────────────────
+  const { data: locations } = await supabase
+    .from("store_locations")
+    .select("id, code, name, description, is_active")
+    .order("code");
+
+  // ─── QC Returns ──────────────────────────────────────────────────────────
+  const { data: qcReturns } = await supabase
+    .from("qc_returns")
+    .select("id, return_number, inspection_id, status, reason, created_at")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  // ─── Approvals ───────────────────────────────────────────────────────────
+  const { data: approvals } = await supabase
+    .from("approvals")
+    .select("id, entity_type, entity_id, status, action, created_at")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
   // ─── Summary statistics ──────────────────────────────────────────────────
   const { count: totalReqs } = await supabase
     .from("requirements")
@@ -140,5 +160,14 @@ ${JSON.stringify(issues ?? [], null, 2)}
 
 MATERIAL RECOVERY (latest 30):
 ${JSON.stringify(recovery ?? [], null, 2)}
+
+STORE LOCATIONS:
+${JSON.stringify(locations ?? [], null, 2)}
+
+QC RETURNS (latest 20):
+${JSON.stringify(qcReturns ?? [], null, 2)}
+
+APPROVALS (latest 30):
+${JSON.stringify(approvals ?? [], null, 2)}
 `;
 }

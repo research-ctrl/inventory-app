@@ -1,12 +1,24 @@
 import type { AIRequest } from "../provider-router";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, DynamicRetrievalMode } from "@google/generative-ai";
 
 export async function generateWithGemini(request: AIRequest): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    tools: [
+      {
+        googleSearchRetrieval: {
+          dynamicRetrievalConfig: {
+            mode: DynamicRetrievalMode.MODE_DYNAMIC,
+            dynamicThreshold: 0.3,
+          },
+        },
+      },
+    ],
+  });
 
   // Convert messages to Gemini format
   const systemInstruction = request.messages

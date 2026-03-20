@@ -22,6 +22,7 @@ export const ROUTES = {
   CHATBOT: "/chatbot",
   REPORTS: "/reports",
   SETTINGS: "/settings",
+  HELP: "/help",
 } as const;
 
 export const PAGINATION = {

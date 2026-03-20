@@ -1,14 +1,17 @@
+import { searchDocs } from '@/lib/docs'
+
 export const searchSOPTool = {
-  name: "search_sop",
-  description: "Search standard operating procedures and documentation",
+  name: 'search_sop',
+  description: 'Search operator guidance and SOP placeholder documentation for workflow instructions.',
   parameters: {
-    type: "object",
+    type: 'object',
     properties: {
-      query: { type: "string" },
+      query: { type: 'string' },
     },
-    required: ["query"],
+    required: ['query'],
   },
   async execute(args: { query: string }) {
-    return { query: args.query, results: [] };
+    const results = await searchDocs(args.query)
+    return { query: args.query, results }
   },
-};
+}

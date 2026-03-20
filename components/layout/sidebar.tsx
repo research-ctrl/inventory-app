@@ -18,6 +18,7 @@ import {
   MessageSquare,
   BarChart3,
   Settings,
+  CircleHelp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/auth/roles'
@@ -75,6 +76,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'System',
     items: [
       { label: 'Settings', href: '/settings', icon: Settings },
+      { label: 'Help', href: '/help', icon: CircleHelp },
     ],
   },
 ]

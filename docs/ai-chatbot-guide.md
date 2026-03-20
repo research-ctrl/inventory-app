@@ -1,34 +1,48 @@
 # AI Chatbot Guide
 
-## Overview
-The SMLS chatbot provides natural language access to operational data.
+## Purpose
 
-## Supported Queries
-- "Find stock for [material description]"
-- "What is the status of requirement REQ-001?"
-- "Where is PIN-12345 stored?"
-- "Show me pending QC inspections"
-- "Trace the history of PIN-5678"
+The AI operations assistant answers grounded questions about the prototype's live operational data and repository guidance.
 
-## AI Tools Available
-| Tool | Description |
-|------|-------------|
-| find_stock | Search inventory by description or PIN |
-| get_requirement_status | Status of a requirement |
-| get_po_status | Status of a purchase order |
-| get_delivery_status | Delivery tracking |
-| get_qc_status | QC inspection results |
-| get_material_location | Warehouse location |
-| trace_material_genealogy | Full lifecycle trace |
-| get_recovery_status | Recovery assessment status |
-| search_sop | Search SOPs and procedures |
+## Supported tools
 
-## Providers
-- Primary: Google Gemini
-- Fallback: Grok
-- Controlled via `AI_DEFAULT_PROVIDER` env var
+| Tool | Use |
+|---|---|
+| `find_stock` | find stock balance by PIN / description / part number |
+| `get_requirement_status` | requirement status lookup |
+| `get_po_status` | purchase order status lookup |
+| `get_delivery_status` | delivery / replacement-loop lookup |
+| `get_qc_status` | QC result lookup |
+| `get_material_location` | live material location lookup |
+| `trace_material_genealogy` | lifecycle and genealogy trace |
+| `get_recovery_status` | recovery status lookup |
+| `search_sop` | placeholder search across repo docs |
+
+## Provider selection
+
+- Default provider is set by `AI_DEFAULT_PROVIDER`.
+- The UI can optionally override the provider at runtime.
+- Provider keys stay server-side only.
 
 ## Guardrails
-- Prompt injection detection
-- No fabrication of inventory data
-- Audit log of all chatbot queries
+
+The chatbot:
+- blocks prompt-injection style inputs
+- treats stock, QC, delivery, and recovery questions as grounded factual requests
+- refuses to invent operational facts
+- falls back to grounded summaries even when an external provider is unavailable
+
+## Logging
+
+Each chat request:
+- creates or updates a `chat_sessions` row
+- stores messages in `chat_messages`
+- writes an audit event to `audit_log`
+
+## Example questions
+
+- `Where is PIN-000001 stored right now?`
+- `What is the status of REQ-0001?`
+- `Show the delivery state for DLV-0001.`
+- `What happened to REC-000002?`
+- `How do I capture leftover and scrap?`

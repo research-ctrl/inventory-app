@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
-import { Menu, Bell, LogOut } from 'lucide-react'
+import { Menu, Bell } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { User } from '@supabase/supabase-js'
 import type { Role } from '@/lib/auth/roles'
 import { ROLE_LABELS } from '@/lib/auth/roles'
+import { OperatorIdentityModal } from '@/components/layout/operator-identity'
 
 interface TopNavProps {
   user?: User | null
@@ -56,7 +57,7 @@ export function TopNav({ user, role, breadcrumb, onMenuClick }: TopNavProps) {
         )}
       </div>
 
-      {/* Right: notifications + user info + sign-out */}
+      {/* Right: notifications + operator attribution */}
       <div className="flex items-center gap-3">
         {/* Notification bell */}
         <div className="relative">
@@ -102,21 +103,7 @@ export function TopNav({ user, role, breadcrumb, onMenuClick }: TopNavProps) {
           </div>
         </div>
 
-        {/* Sign-out */}
-        <form action="/api/auth/signout" method="post">
-          <button
-            type="submit"
-            className={cn(
-              'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-gray-500',
-              'hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500',
-              'transition-colors',
-            )}
-            aria-label="Sign out"
-          >
-            <LogOut className="h-4 w-4 flex-shrink-0" />
-            <span className="hidden sm:inline">Sign out</span>
-          </button>
-        </form>
+        <OperatorIdentityModal />
       </div>
     </header>
   )

@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { getPurchaseOrders } from '@/lib/db/queries/purchase-orders'
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { DataTable } from '@/components/shared/data-table'
 import { PageHeader } from '@/components/shared/page-header'
 import { poColumns } from '@/components/procurement/po-columns'
@@ -11,18 +11,7 @@ export const metadata = { title: 'Purchase Orders | SMLS' }
 const CREATE_ROLES = ['admin', 'super_admin', 'procurement_manager', 'procurement_officer']
 
 export default async function PurchaseOrdersPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id ?? '')
-    .single()
-
-  const role = profile?.role ?? 'viewer'
+  const { role } = await getServerSession()
   const canCreate = CREATE_ROLES.includes(role)
 
   const orders = await getPurchaseOrders()

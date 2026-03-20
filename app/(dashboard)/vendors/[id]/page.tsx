@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { getVendorById } from '@/lib/db/queries/vendors'
 import { getPurchaseOrders } from '@/lib/db/queries/purchase-orders'
 import { PageHeader } from '@/components/shared/page-header'
@@ -19,16 +19,7 @@ export default async function VendorDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const sb = await createClient()
-  const {
-    data: { user },
-  } = await sb.auth.getUser()
-
-  const { data: profile } = await sb
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id ?? '')
-    .single()
+  const { role } = await getServerSession()
 
   let vendor
   try {
@@ -43,7 +34,7 @@ export default async function VendorDetailPage({
     <VendorDetail
       vendor={vendor}
       purchaseOrders={purchaseOrders}
-      role={profile?.role ?? 'viewer'}
+      role={role}
     />
   )
 }

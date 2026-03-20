@@ -1,44 +1,55 @@
 # Deployment Guide
 
+## Target shape
+
+This prototype is designed for:
+- Next.js application hosting (for example Vercel)
+- Supabase-hosted PostgreSQL
+- optional Gemini / Grok API access from the server only
+
 ## Prerequisites
-- Vercel account
-- Supabase project (Cloud)
-- Environment variables configured
 
-## Supabase Setup
+- Supabase project with migrations applied
+- environment variables configured
+- Node.js 20+
+
+## Database setup
+
 ```bash
-# Install CLI
-brew install supabase/tap/supabase
-
-# Login
 supabase login
-
-# Link project
 supabase link --project-ref <your-project-ref>
-
-# Push migrations
 supabase db push
-
-# Deploy edge functions
-supabase functions deploy inventory-recalc
-supabase functions deploy delivery-status-sync
-supabase functions deploy embeddings-sync
 ```
 
-## Vercel Deployment
+Optional seed:
+
 ```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel --prod
+npm run seed
 ```
 
-## Environment Variables
-Set all variables from `.env.example` in Vercel project settings.
+## App deployment
 
-## Post-Deploy Checklist
-- [ ] Run smoke test: `npm run smoke`
-- [ ] Verify auth flow (sign up / sign in)
-- [ ] Test API health: `GET /api/health`
-- [ ] Seed initial admin user
+```bash
+npm ci
+npm run build
+npm run start
+```
+
+or deploy using your preferred Next.js host.
+
+## Required checks
+
+```bash
+npm run lint
+npm run type-check
+npm test
+npm run smoke
+```
+
+## Post-deploy validation
+
+- confirm `/dashboard` loads without login
+- confirm operator identity modal opens on a clean browser
+- verify `/qc`, `/inventory`, `/issues`, `/recovery`, `/chatbot`, and `/help`
+- verify `/api/health`
+- verify `/api/chat` using a grounded question

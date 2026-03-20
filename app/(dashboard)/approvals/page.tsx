@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { getServerSession } from '@/lib/auth/session';
 import { getPendingApprovals } from '@/lib/db/queries/approvals';
 import { PageHeader } from '@/components/shared/page-header';
 import ApprovalsTable from '@/components/approvals/approvals-table';
@@ -6,22 +6,11 @@ import ApprovalsTable from '@/components/approvals/approvals-table';
 export const metadata = { title: 'Approvals | SMLS' };
 
 export default async function ApprovalsPage() {
-  const sb = await createClient();
-
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-
-  const { data: profile } = await sb
-    .from('profiles')
-    .select('id, role')
-    .eq('id', user?.id ?? '')
-    .single() as { data: { id: string; role: string } | null; error: any };
-
-  const role = profile?.role ?? 'viewer';
+  const session = await getServerSession();
+  const role = session.role;
   const isAdmin = ['admin', 'super_admin'].includes(role);
 
-  const myApprovals = profile?.id ? await getPendingApprovals(profile.id) : [];
+  const myApprovals = session.profile.id ? await getPendingApprovals(session.profile.id) : [];
   const allApprovals = isAdmin ? await getPendingApprovals() : [];
 
   return (

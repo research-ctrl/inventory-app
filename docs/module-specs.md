@@ -1,49 +1,56 @@
 # Module Specifications
 
-## 1. Requirements
-- Create, edit, and submit material requirements
-- Fields: title, description, vessel, department, urgency, items list
-- Triggers approval workflow on submit
+## 1. Dashboard
+- live operational metrics from server-side queries
+- low-stock watchlist
+- QC attention queue
+- quick actions into the prototype workflows
 
-## 2. Approvals
-- Centralized queue for approvers
-- Supports approve/reject with comment
-- Email notifications (TODO)
+## 2. Receiving
+- display incoming deliveries
+- route received deliveries into QC
+- keep replacement-loop deliveries visible for follow-up
 
-## 3. Vendors
-- Approved vendor registry
-- Compare vendors by category/rating
-- Quote management (TODO)
+## 3. QC
+- exact pass / partial pass / fail capture
+- accepted quantity and rejected quantity tracking
+- vendor return / replacement-loop creation for rejected material
+- category / phase preparation for inventory intake
 
-## 4. Procurement
-- Purchase Orders linked to Requirements
-- Payments tracking
-- Delivery scheduling
+## 4. Vendor returns and replacements
+- append-only prototype audit tracking
+- replacement loop visibility from QC back into delivery tracking
+- no separate auth workflow
 
-## 5. Receiving
-- Receive items against POs
-- Partial receiving supported
-- Triggers QC workflow
+## 5. Inventory
+- intake queue sourced from QC dispositions
+- PIN generation using sequence-style business IDs
+- location and phase assignment
+- ledger views derived from inventory transactions
 
-## 6. QC
-- Inspector assigns pass/fail/conditional per delivery
-- Failed items trigger return flow
+## 6. Issues / distribution
+- issue material into shipbuilder operations
+- support work-order and vessel context
+- update ledger on issue
 
-## 7. Inventory
-- PIN (Physical Inventory Number) management
-- Location-based storage
-- Real-time quantity via transaction log
+## 7. Usage outcome capture
+- not used
+- leftover
+- scrap
+- partial vs full return status updates on the issue
 
-## 8. Issues
-- Issue materials to vessels/work orders
-- Deducts from inventory on approval
+## 8. Recovery
+- recovery assessment queue
+- reusable vs not reusable path
+- reuse existing PIN, derive new PIN, repair+derive, hold, scrap
 
-## 9. Recovery
-- Return materials from vessels
-- Assess condition and route to reuse/repair/scrap/sell
-- Derived PINs for repaired/split material
+## 9. Traceability
+- PIN detail screen with upstream delivery/PO/requirement context where available
+- issue and recovery chain visibility
+- genealogy and audit trail visibility
 
-## 10. AI Chatbot
-- Natural language queries on all modules
-- Tool-calling for real-time data
-- Provider: Gemini (primary), Grok (fallback)
+## 10. AI chatbot
+- grounded operational Q&A using server-side tools
+- env-selected provider with runtime override
+- chat history and audit logging
+- SOP/document placeholder search across repo docs

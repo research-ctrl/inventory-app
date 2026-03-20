@@ -1,27 +1,34 @@
 # Environment Setup
 
-## Local Development
+## Copy the template
 
-1. Copy example env:
 ```bash
 cp .env.example .env.local
 ```
 
-2. Fill in values:
+## Variables
 
 ### Supabase
-- `NEXT_PUBLIC_SUPABASE_URL`: From Supabase project → Settings → API
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Anon/public key
-- `SUPABASE_SERVICE_ROLE_KEY`: Service role key (keep secret!)
-- `SUPABASE_JWT_SECRET`: JWT secret from Supabase settings
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` *(optional in this prototype, still server-side only)*
+- `SUPABASE_JWT_SECRET` *(optional depending on deployment setup)*
 
-### AI Providers
-- `GEMINI_API_KEY`: Google AI Studio API key
-- `GROK_API_KEY`: xAI Grok API key
+### App
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_APP_NAME`
 
-### Webhook
-- `WEBHOOK_SECRET`: Generate with `openssl rand -hex 32`
+### AI
+- `AI_DEFAULT_PROVIDER` = `gemini` or `grok`
+- `GEMINI_API_KEY` *(optional but required to call Gemini)*
+- `GROK_API_KEY` *(optional but required to call Grok)*
 
-## Validation
-The app validates all required environment variables at startup via `lib/env.ts` (Zod schema).
-Missing or invalid vars will throw an error with clear messages.
+### Feature flags
+- `NEXT_PUBLIC_ENABLE_CHATBOT`
+- `NEXT_PUBLIC_ENABLE_RECOVERY_MODULE`
+
+## Notes
+
+- Provider keys must stay server-side only.
+- The chatbot still works in grounded/fallback mode if no provider key is configured.
+- Invalid env values fail fast via `lib/env.ts`.

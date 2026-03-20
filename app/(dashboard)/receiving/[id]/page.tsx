@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { getDeliveryById, getStoreLocations } from '@/lib/db/queries/deliveries'
 import { getAvailableTransitions } from '@/lib/workflow/transitions'
 import DeliveryDetail from '@/components/receiving/delivery-detail'
@@ -19,18 +19,7 @@ export default async function ReceivingDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user?.id ?? '')
-    .single()
-
-  const role = (profile?.role ?? 'viewer') as UserRole
+  const { role } = await getServerSession()
 
   let delivery
   try {
@@ -41,7 +30,7 @@ export default async function ReceivingDetailPage({
 
   const storeLocations = await getStoreLocations()
 
-  const availableTransitions = getAvailableTransitions('delivery', delivery.status, role)
+  const availableTransitions = getAvailableTransitions('delivery', delivery.status, role as UserRole)
 
   return (
     <DeliveryDetail

@@ -142,7 +142,7 @@ SELECT
     WHEN 'fail'        THEN 'qc_failed'::public.item_status
     WHEN 'conditional' THEN 'qc_conditional'::public.item_status
   END                                       AS status,
-  qi.inspected_at                           AS inspection_date,
+  qi.inspection_date                        AS inspection_date,
   (
     SELECT COUNT(*)
     FROM public.qc_defects qd
@@ -172,7 +172,7 @@ SELECT
   -- running balance from signed transactions
   COALESCE(
     SUM(
-      CASE it.type
+      CASE it.transaction_type
         WHEN 'receipt'    THEN  it.quantity
         WHEN 'return'     THEN  it.quantity
         WHEN 'adjustment' THEN  it.quantity
@@ -194,7 +194,7 @@ SELECT
   -- available = on-hand minus committed
   COALESCE(
     SUM(
-      CASE it.type
+      CASE it.transaction_type
         WHEN 'receipt'    THEN  it.quantity
         WHEN 'return'     THEN  it.quantity
         WHEN 'adjustment' THEN  it.quantity
@@ -212,16 +212,16 @@ SELECT
       AND  mi.status IN ('approved', 'issued')
   ), 0)                                     AS quantity_available,
   -- last receipt date
-  MAX(CASE WHEN it.type = 'receipt' THEN it.created_at END)
+  MAX(CASE WHEN it.transaction_type = 'receipt' THEN it.created_at END)
                                             AS last_receipt_date,
   -- last issue date
-  MAX(CASE WHEN it.type = 'issue'   THEN it.created_at END)
+  MAX(CASE WHEN it.transaction_type = 'issue'   THEN it.created_at END)
                                             AS last_issue_date,
   -- simple low-stock flag (reorder threshold = 10 % of last receipt batch or 1)
   (
     COALESCE(
       SUM(
-        CASE it.type
+        CASE it.transaction_type
           WHEN 'receipt'    THEN  it.quantity
           WHEN 'return'     THEN  it.quantity
           WHEN 'adjustment' THEN  it.quantity
@@ -250,7 +250,7 @@ SELECT
   mi.issue_number,
   ip.pin_number,
   ip.description                            AS pin_description,
-  mi.vessel_name,
+  vv.name                                   AS vessel_name,
   mi.work_order,
   ist.full_name                             AS issued_to_name,
   mi.quantity,
@@ -264,6 +264,7 @@ SELECT
   mi.created_at
 FROM public.material_issues       mi
 LEFT JOIN public.inventory_pins   ip   ON ip.id  = mi.pin_id
+LEFT JOIN public.vessels          vv   ON vv.id  = mi.vessel_id
 LEFT JOIN public.profiles         ist  ON ist.id = mi.issued_to
 LEFT JOIN public.profiles         apr  ON apr.id = mi.approved_by;
 
@@ -460,7 +461,7 @@ AS $$
       WHEN 'conditional' THEN 'qc_conditional'::public.item_status
     END                                       AS status,
     p.full_name                               AS inspector_name,
-    qi.inspected_at                           AS inspection_date,
+    qi.inspection_date                        AS inspection_date,
     (SELECT COUNT(*)
      FROM   public.qc_defects qd
      WHERE  qd.inspection_id = qi.id)         AS defect_count,
@@ -473,7 +474,7 @@ AS $$
   LEFT JOIN public.deliveries d ON d.id  = qi.delivery_id
   LEFT JOIN public.profiles   p ON p.id  = qi.inspector_id
   WHERE qi.delivery_id = p_delivery_id
-  ORDER BY qi.inspected_at;
+  ORDER BY qi.inspection_date;
 $$;
 
 -- ------------------------------------------------------------
@@ -510,7 +511,7 @@ AS $$
     sl.bin,
     COALESCE(
       SUM(
-        CASE it.type
+        CASE it.transaction_type
           WHEN 'receipt'    THEN  it.quantity
           WHEN 'return'     THEN  it.quantity
           WHEN 'adjustment' THEN  it.quantity
@@ -719,7 +720,7 @@ DECLARE
 BEGIN
   SELECT COALESCE(
     SUM(
-      CASE type
+      CASE transaction_type
         WHEN 'receipt'    THEN  quantity
         WHEN 'return'     THEN  quantity
         WHEN 'adjustment' THEN  quantity

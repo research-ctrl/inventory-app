@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { getServerSession } from '@/lib/auth/session';
 import { getRequirementById } from '@/lib/db/queries/requirements';
 import { getAvailableTransitions } from '@/lib/workflow/transitions';
 import RequirementDetail from '@/components/requirements/requirement-detail';
@@ -13,16 +14,7 @@ interface PageProps {
 
 export default async function RequirementDetailPage({ params }: PageProps) {
   const sb = await createClient();
-
-  const {
-    data: { user },
-  } = await sb.auth.getUser();
-
-  const { data: profile } = await sb
-    .from('profiles')
-    .select('id, role')
-    .eq('id', user?.id ?? '')
-    .single();
+  const { role } = await getServerSession();
 
   let requirement: any;
   try {
@@ -31,7 +23,6 @@ export default async function RequirementDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const role = profile?.role ?? 'viewer';
   const availableTransitions = getAvailableTransitions('requirement', requirement.status, role);
 
   const { data: history } = await sb

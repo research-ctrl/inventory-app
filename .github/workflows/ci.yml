@@ -7,9 +7,14 @@ on:
     branches: [main, develop]
 
 jobs:
-  lint-typecheck:
-    name: Lint & Type Check
+  validate:
+    name: Lint, typecheck, test, smoke, build
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-key
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      AI_DEFAULT_PROVIDER: gemini
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -19,30 +24,6 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run type-check
-
-  test:
-    name: Unit Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
-      - run: npm test
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    env:
-      NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-key
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
+      - run: npm test -- --run
+      - run: npm run smoke
       - run: npm run build

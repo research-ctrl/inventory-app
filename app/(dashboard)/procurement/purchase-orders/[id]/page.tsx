@@ -1,15 +1,67 @@
-export const metadata = { title: "PO Detail | SMLS" };
+import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getPurchaseOrderById } from '@/lib/db/queries/purchase-orders'
+import { getAvailableTransitions } from '@/lib/workflow/transitions'
+import PoDetail from '@/components/procurement/po-detail'
+import type { UserRole } from '@/types/domain'
 
-export default function Page() {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  try {
+    const po = await getPurchaseOrderById((await params).id)
+    return { title: `${po.po_number} | Purchase Orders | SMLS` }
+  } catch {
+    return { title: 'Purchase Order | SMLS' }
+  }
+}
+
+export default async function PurchaseOrderDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id ?? '')
+    .single()
+
+  const role = profile?.role ?? 'viewer'
+
+  let po
+  try {
+    po = await getPurchaseOrderById((await params).id)
+  } catch {
+    notFound()
+  }
+
+  // Fetch workflow history separately
+  const { data: workflowHistory } = await supabase
+    .from('workflow_history')
+    .select(`
+      id, event, from_status, to_status, comment, created_at,
+      actor:profiles!workflow_history_actor_id_fkey(full_name)
+    `)
+    .eq('entity_type', 'purchase_order')
+    .eq('entity_id', (await params).id)
+    .order('created_at', { ascending: false })
+
+  const availableTransitions = getAvailableTransitions('purchase_order', po.status, role as UserRole)
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">PO Detail</h1>
-        <p className="text-muted-foreground">View purchase order</p>
-      </div>
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
-        <p className="text-sm text-muted-foreground">Module under construction.</p>
-      </div>
-    </div>
-  );
+    <PoDetail
+      po={{
+        ...po,
+        vendors: po.vendor as any,
+        requirements: po.requirement as any,
+        workflow_history: (workflowHistory ?? []) as any,
+      }}
+      availableTransitions={availableTransitions as any}
+      currentRole={role}
+    />
+  )
 }

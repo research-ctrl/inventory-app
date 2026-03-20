@@ -1,15 +1,26 @@
-export const metadata = { title: "Deliveries | SMLS" };
+import { getDeliveries } from '@/lib/db/queries/deliveries'
+import { DataTable } from '@/components/shared/data-table'
+import { PageHeader } from '@/components/shared/page-header'
+import { deliveryColumns } from '@/components/procurement/delivery-columns'
 
-export default function Page() {
+export const metadata = { title: 'Deliveries | SMLS' }
+
+export default async function DeliveriesPage() {
+  const deliveries = await getDeliveries()
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Deliveries</h1>
-        <p className="text-muted-foreground">Track deliveries</p>
-      </div>
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
-        <p className="text-sm text-muted-foreground">Module under construction.</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Deliveries"
+        description={`${deliveries.length} delivery record${deliveries.length !== 1 ? 's' : ''}`}
+      />
+
+      <DataTable
+        data={deliveries}
+        columns={deliveryColumns}
+        searchPlaceholder="Search by delivery reference…"
+        searchColumn="delivery_ref"
+      />
     </div>
-  );
+  )
 }

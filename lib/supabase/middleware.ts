@@ -24,12 +24,12 @@ export async function updateSession(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
+        setAll(cookiesToSet: {name: string; value: string; options?: any}[]) {
+          cookiesToSet.forEach(({ name, value }: {name: string; value: string; options?: any}) =>
             request.cookies.set(name, value)
           );
           response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }: {name: string; value: string; options?: any}) =>
             response.cookies.set(name, value, options)
           );
         },

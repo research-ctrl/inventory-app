@@ -1,15 +1,49 @@
-export const metadata = { title: "Vendor Detail | SMLS" };
+import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getVendorById } from '@/lib/db/queries/vendors'
+import { getPurchaseOrders } from '@/lib/db/queries/purchase-orders'
+import { PageHeader } from '@/components/shared/page-header'
+import VendorDetail from '@/components/vendors/vendor-detail'
 
-export default function Page() {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  try {
+    const vendor = await getVendorById((await params).id)
+    return { title: `${vendor.name} | Vendors | SMLS` }
+  } catch {
+    return { title: 'Vendor | SMLS' }
+  }
+}
+
+export default async function VendorDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const sb = await createClient()
+  const {
+    data: { user },
+  } = await sb.auth.getUser()
+
+  const { data: profile } = await sb
+    .from('profiles')
+    .select('role')
+    .eq('id', user?.id ?? '')
+    .single()
+
+  let vendor
+  try {
+    vendor = await getVendorById((await params).id)
+  } catch {
+    notFound()
+  }
+
+  const purchaseOrders = await getPurchaseOrders({ vendor_id: (await params).id })
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Vendor Detail</h1>
-        <p className="text-muted-foreground">View vendor profile</p>
-      </div>
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
-        <p className="text-sm text-muted-foreground">Module under construction.</p>
-      </div>
-    </div>
-  );
+    <VendorDetail
+      vendor={vendor}
+      purchaseOrders={purchaseOrders}
+      role={profile?.role ?? 'viewer'}
+    />
+  )
 }

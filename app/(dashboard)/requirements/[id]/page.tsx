@@ -1,15 +1,58 @@
-export const metadata = { title: "Requirement Detail | SMLS" };
+import { notFound } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { getRequirementById } from '@/lib/db/queries/requirements';
+import { getAvailableTransitions } from '@/lib/workflow/transitions';
+import RequirementDetail from '@/components/requirements/requirement-detail';
+import { PageHeader } from '@/components/shared/page-header';
 
-export default function Page() {
+export const metadata = { title: 'Requirement Detail | SMLS' };
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default async function RequirementDetailPage({ params }: PageProps) {
+  const sb = await createClient();
+
+  const {
+    data: { user },
+  } = await sb.auth.getUser();
+
+  const { data: profile } = await sb
+    .from('profiles')
+    .select('id, role')
+    .eq('id', user?.id ?? '')
+    .single();
+
+  let requirement: any;
+  try {
+    requirement = await getRequirementById((await params).id);
+  } catch {
+    notFound();
+  }
+
+  const role = profile?.role ?? 'viewer';
+  const availableTransitions = getAvailableTransitions('requirement', requirement.status, role);
+
+  const { data: history } = await sb
+    .from('workflow_history')
+    .select('*, actor:profiles(full_name, email)')
+    .eq('entity_type', 'requirement')
+    .eq('entity_id', (await params).id)
+    .order('created_at', { ascending: false });
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Requirement Detail</h1>
-        <p className="text-muted-foreground">View and manage requirement</p>
-      </div>
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
-        <p className="text-sm text-muted-foreground">Module under construction.</p>
-      </div>
+    <div className="max-w-5xl space-y-6">
+      <PageHeader
+        title={requirement.ref_number ?? 'Requirement'}
+        description={requirement.title}
+      />
+      <RequirementDetail
+        requirement={requirement}
+        workflowHistory={history ?? []}
+        availableTransitions={availableTransitions}
+        currentRole={role}
+      />
     </div>
   );
 }

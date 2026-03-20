@@ -194,6 +194,24 @@ export default function DeliveryDetail({
         </div>
       )}
 
+      {/* QC cross-link banner */}
+      {delivery.status === 'qc_pending' && (
+        <div className="rounded-xl border border-teal-200 bg-teal-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-teal-900">🔬 Ready for QC Inspection</p>
+            <p className="text-xs text-teal-700 mt-0.5">
+              This delivery has been received and is awaiting quality control inspection.
+            </p>
+          </div>
+          <Link
+            href={`/qc/inspections/${delivery.id}`}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700 transition-colors shadow-sm"
+          >
+            Start QC Inspection →
+          </Link>
+        </div>
+      )}
+
       {/* Location selector (shown when receive action is available) */}
       {needsLocation && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">

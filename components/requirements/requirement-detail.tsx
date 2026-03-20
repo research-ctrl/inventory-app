@@ -278,6 +278,40 @@ export default function RequirementDetail({
         </div>
       </div>
 
+      {/* Workflow context banners */}
+      {requirement.status === 'pending_approval' && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">⏳ Awaiting Approval</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              This requirement has been submitted and is pending approver review.
+            </p>
+          </div>
+          <Link
+            href="/approvals"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm"
+          >
+            View Approvals →
+          </Link>
+        </div>
+      )}
+      {requirement.status === 'approved' && (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-green-900">✅ Approved — Ready for Purchase Order</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              This requirement is approved. Create a Purchase Order to proceed with procurement.
+            </p>
+          </div>
+          <Link
+            href={`/procurement/purchase-orders/new?requirement_id=${requirement.id}`}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm"
+          >
+            Create Purchase Order →
+          </Link>
+        </div>
+      )}
+
       {/* 2. Info Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         <InfoCard

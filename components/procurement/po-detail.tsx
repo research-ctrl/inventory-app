@@ -226,6 +226,24 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
         </div>
       )}
 
+      {/* Workflow context banners */}
+      {po.status === 'pending_approval' && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">⏳ Awaiting Approval</p>
+            <p className="text-xs text-amber-700 mt-0.5">
+              This PO has been submitted and is waiting for approver review.
+            </p>
+          </div>
+          <Link
+            href="/approvals"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm"
+          >
+            View Approvals →
+          </Link>
+        </div>
+      )}
+
       {po.rejection_reason && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <span className="font-medium">Rejection reason:</span> {po.rejection_reason}
@@ -363,10 +381,31 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
 
       {/* Deliveries tab */}
       {activeTab === 'deliveries' && (
+        <div className="space-y-4">
+          {/* Cross-link banner when PO is ordered */}
+          {['ordered', 'approved'].includes(po.status) && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-indigo-900">📦 Expecting Delivery</p>
+                <p className="text-xs text-indigo-700 mt-0.5">
+                  When goods arrive, record the delivery in the Receiving Dock to begin the receiving workflow.
+                </p>
+              </div>
+              <Link
+                href={`/receiving`}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                Go to Receiving →
+              </Link>
+            </div>
+          )}
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           {!(po.deliveries ?? []).length ? (
             <div className="px-6 py-12 text-center text-sm text-gray-400">
-              No deliveries recorded for this PO.
+              No deliveries recorded for this PO.{' '}
+              {['ordered', 'approved'].includes(po.status) && (
+                <Link href="/receiving" className="text-blue-600 hover:underline">Go to Receiving Dock →</Link>
+              )}
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -399,6 +438,7 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
               </tbody>
             </table>
           )}
+        </div>
         </div>
       )}
 

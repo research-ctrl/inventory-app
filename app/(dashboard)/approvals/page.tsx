@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getPendingApprovals } from '@/lib/db/queries/approvals';
+import { getPendingApprovals, getCompletedApprovals } from '@/lib/db/queries/approvals';
 import { PageHeader } from '@/components/shared/page-header';
 import ApprovalsTable from '@/components/approvals/approvals-table';
 
@@ -21,8 +21,12 @@ export default async function ApprovalsPage() {
   const role = profile?.role ?? 'viewer';
   const isAdmin = ['admin', 'super_admin'].includes(role);
 
-  const myApprovals = profile?.id ? await getPendingApprovals(profile.id) : [];
-  const allApprovals = isAdmin ? await getPendingApprovals() : [];
+  const [myApprovals, allApprovals, myHistory, allHistory] = await Promise.all([
+    profile?.id ? getPendingApprovals(profile.id) : Promise.resolve([]),
+    isAdmin ? getPendingApprovals() : Promise.resolve([]),
+    profile?.id ? getCompletedApprovals(profile.id) : Promise.resolve([]),
+    isAdmin ? getCompletedApprovals() : Promise.resolve([]),
+  ])
 
   return (
     <div className="space-y-6">
@@ -33,6 +37,8 @@ export default async function ApprovalsPage() {
       <ApprovalsTable
         myApprovals={myApprovals as any}
         allApprovals={allApprovals as any}
+        myHistory={myHistory as any}
+        allHistory={allHistory as any}
         role={role}
       />
     </div>

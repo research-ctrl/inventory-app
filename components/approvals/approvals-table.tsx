@@ -8,6 +8,8 @@ import { EmptyState } from '@/components/shared/empty-state';
 interface ApprovalsTableProps {
   myApprovals: ApprovalRow[];
   allApprovals: ApprovalRow[];
+  myHistory: ApprovalRow[];
+  allHistory: ApprovalRow[];
   role: string;
 }
 
@@ -16,9 +18,12 @@ const isAdmin = (role: string) => ['admin', 'super_admin'].includes(role);
 export default function ApprovalsTable({
   myApprovals,
   allApprovals,
+  myHistory,
+  allHistory,
   role,
 }: ApprovalsTableProps) {
   const showAllTab = isAdmin(role);
+  const historyData = showAllTab ? allHistory : myHistory;
 
   return (
     <Tabs.Root defaultValue="mine" className="space-y-4">
@@ -51,6 +56,18 @@ export default function ApprovalsTable({
             )}
           </Tabs.Trigger>
         )}
+
+        <Tabs.Trigger
+          value="history"
+          className="relative px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 data-[state=active]:text-blue-600 data-[state=active]:after:absolute data-[state=active]:after:bottom-0 data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-0.5 data-[state=active]:after:bg-blue-600"
+        >
+          History
+          {historyData.length > 0 && (
+            <span className="ml-1.5 rounded-full bg-gray-100 px-1.5 py-0.5 text-xs font-medium text-gray-500">
+              {historyData.length}
+            </span>
+          )}
+        </Tabs.Trigger>
       </Tabs.List>
 
       <Tabs.Content value="mine" className="outline-none">
@@ -76,6 +93,17 @@ export default function ApprovalsTable({
           )}
         </Tabs.Content>
       )}
+
+      <Tabs.Content value="history" className="outline-none">
+        {historyData.length === 0 ? (
+          <EmptyState
+            title="No approval history"
+            description={showAllTab ? "No approvals have been decided yet." : "You haven't decided on any approvals yet."}
+          />
+        ) : (
+          <DataTable columns={approvalColumns} data={historyData} />
+        )}
+      </Tabs.Content>
     </Tabs.Root>
   );
 }

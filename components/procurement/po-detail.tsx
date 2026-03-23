@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { Mail, Package, Printer, Pencil } from 'lucide-react'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { PageHeader } from '@/components/shared/page-header'
-import { transitionPurchaseOrder } from '@/actions/purchase-orders'
+import { transitionPurchaseOrder, sendPOEmailToVendor } from '@/actions/purchase-orders'
 import PaymentForm from '@/components/procurement/payment-form'
 
 type Tab = 'details' | 'deliveries' | 'payments' | 'history'
@@ -139,6 +141,7 @@ function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function PoDetail({ po, availableTransitions, currentRole }: PoDetailProps) {
+  const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [isPending, startTransition] = useTransition()
   const [comment, setComment] = useState('')
@@ -146,6 +149,23 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
   const [pendingTransition, setPendingTransition] = useState<{ event: string; to: string } | null>(null)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [sendingEmail, setSendingEmail] = useState(false)
+
+  const handleSendToVendor = async () => {
+    setSendingEmail(true)
+    try {
+      const result = await sendPOEmailToVendor(po.id)
+      if (result.success) {
+        setActionMsg({ type: 'success', text: `PO emailed to ${po.vendors?.name ?? 'vendor'} successfully.` })
+      } else {
+        setActionMsg({ type: 'error', text: typeof result.error === 'string' ? result.error : 'Failed to send email.' })
+      }
+    } catch {
+      setActionMsg({ type: 'error', text: 'Failed to send email to vendor.' })
+    } finally {
+      setSendingEmail(false)
+    }
+  }
 
   const paidTotal = (po.payments ?? [])
     .filter((p) => ['approved', 'completed'].includes(p.status))
@@ -174,6 +194,7 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
         })
       } else {
         setActionMsg({ type: 'success', text: `PO ${eventLabel.replace(/_/g, ' ')} successfully.` })
+        router.refresh()
       }
       setShowCommentModal(false)
       setPendingTransition(null)
@@ -197,6 +218,42 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
       >
         <StatusBadge status={po.status} />
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Send to Vendor (when approved or ordered) */}
+          {['approved', 'ordered', 'partially_delivered', 'delivered'].includes(po.status) && po.vendors?.email && (
+            <button
+              onClick={handleSendToVendor}
+              disabled={sendingEmail || isPending}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-md border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
+            >
+              {sendingEmail ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent" />
+              ) : (
+                <Mail className="h-4 w-4" />
+              )}
+              Email to Vendor
+            </button>
+          )}
+
+          {/* Edit PO — only for draft / rejected */}
+          {['draft', 'rejected'].includes(po.status) && (
+            <Link
+              href={`/procurement/purchase-orders/${po.id}/edit`}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-md border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+              Edit PO
+            </Link>
+          )}
+
+          {/* Print PO */}
+          <button
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors"
+          >
+            <Printer className="h-4 w-4" />
+            Print PO
+          </button>
+
           {availableTransitions.map((t) => {
             const style = TRANSITION_LABELS[t.event]?.style ?? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             return (
@@ -382,29 +439,32 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
       {/* Deliveries tab */}
       {activeTab === 'deliveries' && (
         <div className="space-y-4">
-          {/* Cross-link banner when PO is ordered */}
-          {['ordered', 'approved'].includes(po.status) && (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-5 py-4 flex items-center justify-between gap-4">
+          {/* Create Delivery button when PO is approved, ordered, or partially delivered */}
+          {['approved', 'ordered', 'partially_delivered'].includes(po.status) && (
+            <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-indigo-900">📦 Expecting Delivery</p>
-                <p className="text-xs text-indigo-700 mt-0.5">
-                  When goods arrive, record the delivery in the Receiving Dock to begin the receiving workflow.
+                <p className="text-sm font-semibold text-green-900">📦 Ready to Receive</p>
+                <p className="text-xs text-green-700 mt-0.5">
+                  Record a new delivery when the goods arrive from{' '}
+                  <strong>{po.vendors?.name ?? 'vendor'}</strong>. This will begin the receiving &amp; QC workflow.
                 </p>
               </div>
               <Link
-                href={`/receiving`}
-                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                href={`/receiving/new?po_id=${po.id}`}
+                className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm"
               >
-                Go to Receiving →
+                <Package className="h-4 w-4" />
+                Record Delivery
               </Link>
             </div>
           )}
+
         <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
           {!(po.deliveries ?? []).length ? (
             <div className="px-6 py-12 text-center text-sm text-gray-400">
               No deliveries recorded for this PO.{' '}
-              {['ordered', 'approved'].includes(po.status) && (
-                <Link href="/receiving" className="text-blue-600 hover:underline">Go to Receiving Dock →</Link>
+              {['approved', 'ordered', 'partially_delivered'].includes(po.status) && (
+                <Link href={`/receiving/new?po_id=${po.id}`} className="text-blue-600 hover:underline">Record first delivery →</Link>
               )}
             </div>
           ) : (
@@ -477,7 +537,10 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
                     poId={po.id}
                     poNumber={po.po_number}
                     remainingAmount={remainingAmount}
-                    onSuccess={() => setShowPaymentForm(false)}
+                    onSuccess={() => {
+                      setShowPaymentForm(false)
+                      router.refresh()
+                    }}
                   />
                 </div>
               ) : (

@@ -14,7 +14,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 
-type AIProvider = "gemini" | "groq" | "mistral";
+type AIProvider = "gemini" | "groq" | "mistral" | "nvidia";
 type ChatState = "closed" | "minimized" | "open";
 
 interface Message {
@@ -33,6 +33,7 @@ interface ProviderOption {
 
 const PROVIDERS: ProviderOption[] = [
   { id: "groq", label: "Groq · Llama 3.3", dot: "bg-purple-500" },
+  { id: "nvidia", label: "Nvidia · Llama 3.1 405B", dot: "bg-green-500" },
   { id: "gemini", label: "Gemini 2.0 Flash", dot: "bg-blue-500" },
   { id: "mistral", label: "Mistral Large", dot: "bg-orange-500" },
 ];

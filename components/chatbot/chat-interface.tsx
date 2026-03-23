@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Loader2, Sparkles, Trash2, ChevronDown } from "lucide-react";
 
-type AIProvider = "gemini" | "groq" | "mistral";
+type AIProvider = "gemini" | "groq" | "mistral" | "nvidia";
 
 interface ProviderOption {
   id: AIProvider;
@@ -20,6 +20,13 @@ const PROVIDERS: ProviderOption[] = [
     description: "Google · Web search enabled",
     color: "text-blue-700",
     dot: "bg-blue-500",
+  },
+  {
+    id: "nvidia",
+    label: "Nvidia · Llama 3.1 405B",
+    description: "Nvidia API Catalog · Enterprise-grade",
+    color: "text-green-700",
+    dot: "bg-green-500",
   },
   {
     id: "mistral",

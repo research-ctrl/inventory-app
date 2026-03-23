@@ -7,6 +7,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { PageHeader } from '@/components/shared/page-header'
 import VendorForm from '@/components/vendors/vendor-form'
 import { approveVendor, rejectVendor } from '@/actions/vendors'
+import { VendorItemsTable } from '@/components/vendors/vendor-items-table'
 
 interface VendorContact {
   id: string
@@ -55,10 +56,11 @@ interface VendorDetailProps {
     vendor_contacts?: VendorContact[]
   }
   purchaseOrders: PoSummaryRow[]
+  vendorItems?: any[]
   role: string
 }
 
-type Tab = 'overview' | 'contacts' | 'pos' | 'edit'
+type Tab = 'overview' | 'contacts' | 'catalog' | 'pos' | 'edit'
 
 const APPROVER_ROLES = ['admin', 'super_admin', 'procurement_manager']
 
@@ -106,7 +108,7 @@ function fmtCurrency(amount: number | null | undefined, currency: string | null 
   }).format(amount)
 }
 
-export default function VendorDetail({ vendor, purchaseOrders, role }: VendorDetailProps) {
+export default function VendorDetail({ vendor, purchaseOrders, vendorItems = [], role }: VendorDetailProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
@@ -149,9 +151,12 @@ export default function VendorDetail({ vendor, purchaseOrders, role }: VendorDet
     .filter(Boolean)
     .join(', ')
 
+  const canEditVendor = APPROVER_ROLES.includes(role)
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'overview', label: 'Overview' },
     { id: 'contacts', label: 'Contacts', count: vendor.vendor_contacts?.length ?? 0 },
+    { id: 'catalog', label: 'Catalog Items', count: vendorItems.filter((i) => i.is_active).length },
     { id: 'pos', label: 'PO History', count: purchaseOrders.length },
     { id: 'edit', label: 'Edit' },
   ]
@@ -421,6 +426,22 @@ export default function VendorDetail({ vendor, purchaseOrders, role }: VendorDet
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {activeTab === 'catalog' && (
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <h3 className="text-base font-semibold text-gray-900 mb-4">
+            Vendor Catalog Items
+            <span className="ml-2 text-xs font-normal text-gray-400">
+              — Items, pricing, and lead times offered by {vendor.name}
+            </span>
+          </h3>
+          <VendorItemsTable
+            items={vendorItems}
+            vendorId={vendor.id}
+            canEdit={canEditVendor}
+          />
         </div>
       )}
 

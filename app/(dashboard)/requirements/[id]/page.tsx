@@ -12,6 +12,9 @@ interface PageProps {
 }
 
 export default async function RequirementDetailPage({ params }: PageProps) {
+  const { id: resolvedId } = await params;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(resolvedId)) notFound()
   const sb = await createClient();
 
   const {
@@ -26,7 +29,7 @@ export default async function RequirementDetailPage({ params }: PageProps) {
 
   let requirement: any;
   try {
-    requirement = await getRequirementById((await params).id);
+    requirement = await getRequirementById(resolvedId);
   } catch {
     notFound();
   }
@@ -34,12 +37,19 @@ export default async function RequirementDetailPage({ params }: PageProps) {
   const role = profile?.role ?? 'viewer';
   const availableTransitions = getAvailableTransitions('requirement', requirement.status, role);
 
-  const { data: history } = await sb
-    .from('workflow_history')
-    .select('*, actor:profiles(full_name, email)')
-    .eq('entity_type', 'requirement')
-    .eq('entity_id', (await params).id)
-    .order('created_at', { ascending: false });
+  const [{ data: history }, { data: linkedPOs }] = await Promise.all([
+    sb
+      .from('workflow_history')
+      .select('*, actor:profiles(full_name, email)')
+      .eq('entity_type', 'requirement')
+      .eq('entity_id', resolvedId)
+      .order('created_at', { ascending: false }),
+    sb
+      .from('purchase_orders')
+      .select('id, po_number, status, total_amount, currency, created_at, vendor:vendors(name)')
+      .eq('requirement_id', resolvedId)
+      .order('created_at', { ascending: false }),
+  ]);
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -51,6 +61,7 @@ export default async function RequirementDetailPage({ params }: PageProps) {
         requirement={requirement}
         workflowHistory={history ?? []}
         availableTransitions={availableTransitions}
+        linkedPOs={linkedPOs ?? []}
         currentRole={role}
       />
     </div>

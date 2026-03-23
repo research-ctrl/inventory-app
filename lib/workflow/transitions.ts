@@ -27,7 +27,7 @@ export const WORKFLOW_TRANSITIONS: Record<string, WorkflowTransition[]> = {
       from: 'draft',
       to: 'pending_approval',
       event: 'submit',
-      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
+      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin', 'finance', 'store_manager', 'store_keeper'],
       label: 'Submit for Approval',
     },
     {
@@ -48,14 +48,22 @@ export const WORKFLOW_TRANSITIONS: Record<string, WorkflowTransition[]> = {
       from: 'rejected',
       to: 'draft',
       event: 'revise',
-      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
-      label: 'Revise',
+      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin', 'finance', 'store_manager', 'store_keeper'],
+      label: 'Revise & Resubmit',
+    },
+    // Allow requester to withdraw from pending back to draft
+    {
+      from: 'pending_approval',
+      to: 'draft',
+      event: 'withdraw',
+      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin', 'finance', 'store_manager', 'store_keeper'],
+      label: 'Withdraw to Draft',
     },
     {
       from: 'approved',
       to: 'in_progress',
       event: 'raise_po',
-      allowedRoles: ['procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
+      allowedRoles: ['approver', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin', 'finance'],
       label: 'Raise PO',
     },
     {
@@ -72,6 +80,35 @@ export const WORKFLOW_TRANSITIONS: Record<string, WorkflowTransition[]> = {
       allowedRoles: ['procurement_manager', 'admin', 'super_admin'],
       label: 'Close',
     },
+    // Cancel from any active state
+    {
+      from: 'draft',
+      to: 'cancelled',
+      event: 'cancel',
+      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin', 'finance', 'store_manager', 'store_keeper'],
+      label: 'Cancel Request',
+    },
+    {
+      from: 'pending_approval',
+      to: 'cancelled',
+      event: 'cancel',
+      allowedRoles: ['procurement_manager', 'admin', 'super_admin'],
+      label: 'Cancel Request',
+    },
+    {
+      from: 'approved',
+      to: 'cancelled',
+      event: 'cancel',
+      allowedRoles: ['procurement_manager', 'admin', 'super_admin'],
+      label: 'Cancel Requirement',
+    },
+    {
+      from: 'rejected',
+      to: 'cancelled',
+      event: 'cancel',
+      allowedRoles: ['engineer', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin', 'finance', 'store_manager', 'store_keeper'],
+      label: 'Cancel Request',
+    },
   ],
 
   purchase_order: [
@@ -79,14 +116,14 @@ export const WORKFLOW_TRANSITIONS: Record<string, WorkflowTransition[]> = {
       from: null,
       to: 'draft',
       event: 'create',
-      allowedRoles: ['procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
+      allowedRoles: ['approver', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
       label: 'Create',
     },
     {
       from: 'draft',
       to: 'pending_approval',
       event: 'submit',
-      allowedRoles: ['procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
+      allowedRoles: ['approver', 'procurement_officer', 'procurement_manager', 'admin', 'super_admin'],
       label: 'Submit for Approval',
     },
     {

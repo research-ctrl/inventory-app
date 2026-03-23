@@ -13,6 +13,8 @@ export default async function QCInspectionPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(id)) notFound()
   const sb = await createClient()
 
   let delivery: any = null

@@ -18,10 +18,15 @@ export const CreateRequirementSchema = z.object({
   description: z.string().optional(),
   vessel_id: z.string().uuid('Select a vessel').optional().nullable(),
   department_id: z.string().uuid('Select a department').optional().nullable(),
+  assigned_approver_id: z.string().uuid('Select an approver').optional().nullable(),
+  preferred_vendor_id: z.string().uuid().optional().nullable(),
   urgency: z.enum(['routine', 'urgent', 'critical']).default('routine'),
   required_date: z.string().optional().nullable(),
   budget_estimate: z.coerce.number().nonnegative().optional().nullable(),
   currency: z.string().length(3).default('USD'),
+  reason: z.string().max(1000).optional().nullable(),
+  requested_on_behalf_of: z.string().max(200).optional().nullable(),
+  inventory_pin_id: z.string().uuid().optional().nullable(),
   items: z.array(RequirementItemSchema).min(1, 'At least one item required'),
 })
 

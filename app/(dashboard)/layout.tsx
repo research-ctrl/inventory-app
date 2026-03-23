@@ -1,5 +1,4 @@
-import { Sidebar } from '@/components/layout/sidebar'
-import { TopNav } from '@/components/layout/top-nav'
+import { Shell } from '@/components/layout/shell'
 import { OperatorGate } from '@/components/shared/operator-gate'
 import { FloatingChatbot } from '@/components/chatbot/floating-chatbot'
 import { createClient } from '@/lib/supabase/server'
@@ -23,20 +22,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <OperatorGate>
-      <div className="flex h-screen overflow-hidden">
-        {/* Fixed-width sidebar */}
-        <div className="hidden lg:flex lg:flex-shrink-0">
-          <Sidebar role={role} userName={displayName} />
-        </div>
-
-        {/* Main content column */}
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <TopNav user={user} profile={profile as any} displayName={displayName} role={role} />
-          <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
-            {children}
-          </main>
-        </div>
-      </div>
+      <Shell
+        role={role}
+        userName={displayName}
+        user={user}
+        profile={profile as any}
+        displayName={displayName}
+      >
+        {children}
+      </Shell>
 
       {/* Floating AI chatbot — persists across all pages */}
       <FloatingChatbot userName={displayName} />

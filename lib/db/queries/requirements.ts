@@ -55,6 +55,9 @@ export async function getRequirementById(id: string) {
       department:departments(id, name, code),
       requested_by_profile:profiles!requirements_requested_by_fkey(id, full_name, email),
       approved_by_profile:profiles!requirements_approved_by_fkey(id, full_name, email),
+      assigned_approver:profiles!requirements_assigned_approver_id_fkey(id, full_name, email),
+      preferred_vendor:vendors!requirements_preferred_vendor_id_fkey(id, name, email),
+      inventory_pin:inventory_pins!requirements_inventory_pin_id_fkey(id, pin_number, description),
       requirement_items(*)
     `)
     .eq('id', id)
@@ -72,5 +75,15 @@ export async function getVessels() {
 export async function getDepartments() {
   const sb = await createClient()
   const { data } = await sb.from('departments').select('id, name, code').eq('is_active', true).order('name')
+  return data ?? []
+}
+
+export async function getApprovers() {
+  const sb = await createClient()
+  const { data } = await sb
+    .from('profiles')
+    .select('id, full_name, email, role')
+    .in('role', ['super_admin', 'admin', 'procurement_manager', 'approver'])
+    .order('full_name')
   return data ?? []
 }

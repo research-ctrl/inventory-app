@@ -4,9 +4,16 @@ import { env } from "@/lib/env";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/requirements", "/approvals",
   "/vendors", "/procurement", "/receiving", "/qc", "/inventory",
-  "/issues", "/recovery", "/chatbot", "/reports", "/settings"];
+  "/issues", "/recovery", "/chatbot", "/reports", "/settings",
+  "/admin", "/admin-portal"];
 
-const PUBLIC_ROUTES = ["/sign-in", "/sign-up", "/api/health"];
+const PUBLIC_ROUTES = [
+  "/sign-in", "/sign-up", "/api/health",
+  // Admin portal auth pages are public (no session required to reach them)
+  "/admin-portal/sign-in", "/admin-portal/sign-up",
+  // Token-based approval page — no login required (token IS the credential)
+  "/approve",
+];
 
 function isProtected(pathname: string): boolean {
   if (PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) return false;

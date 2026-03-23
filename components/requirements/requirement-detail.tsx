@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { format } from 'date-fns';
 import Link from 'next/link';
-import { Pencil } from 'lucide-react';
+import { Pencil, ShoppingCart } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
 import StockCheckPanel from './stock-check-panel';
 import { transitionRequirement } from '@/actions/requirements';
@@ -28,11 +28,22 @@ interface AvailableTransition {
   requiresComment?: boolean;
 }
 
+interface LinkedPO {
+  id: string;
+  po_number: string | null;
+  status: string | null;
+  total_amount: number | null;
+  currency: string | null;
+  created_at: string;
+  vendor?: { name: string } | { name: string }[] | null;
+}
+
 interface RequirementDetailProps {
   requirement: any;
   workflowHistory: WorkflowHistoryEntry[];
   availableTransitions: AvailableTransition[];
   stockData?: any[];
+  linkedPOs?: LinkedPO[];
   currentRole: string;
 }
 
@@ -90,7 +101,8 @@ function TransitionButton({
   const [comment, setComment] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const needsComment = transition.requiresComment || transition.to === 'rejected';
+  const isDestructive = transition.to === 'rejected' || transition.to === 'cancelled';
+  const needsComment = transition.requiresComment || isDestructive;
 
   const handleConfirm = () => {
     if (needsComment && !comment.trim()) {
@@ -100,7 +112,6 @@ function TransitionButton({
     setError(null);
     startTransition(async () => {
       try {
-        // transitionRequirement(id, toStatus, comment?)
         const result = await transitionRequirement(
           requirementId,
           transition.to,
@@ -122,10 +133,10 @@ function TransitionButton({
     return (
       <button
         type="button"
-        onClick={() => (needsComment ? setShowDialog(true) : handleConfirm())}
+        onClick={() => (isDestructive || needsComment ? setShowDialog(true) : handleConfirm())}
         disabled={isPending}
         className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
-          transition.to === 'rejected'
+          isDestructive
             ? 'border border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
             : 'border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
         }`}
@@ -154,6 +165,14 @@ function TransitionButton({
         className="fixed inset-0 z-50 flex items-center justify-center p-4"
       >
         <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
+          {transition.to === 'cancelled' && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3">
+              <p className="text-sm font-semibold text-red-800">Are you sure you want to cancel this request?</p>
+              <p className="text-xs text-red-700 mt-0.5">
+                This action will notify the original requester by email. Please provide a reason below.
+              </p>
+            </div>
+          )}
           <h2
             id="transition-dialog-title"
             className="text-base font-semibold text-gray-900 mb-1"
@@ -183,14 +202,14 @@ function TransitionButton({
               }}
               className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
-              Cancel
+              Go Back
             </button>
             <button
               type="button"
               onClick={handleConfirm}
               disabled={isPending}
               className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium disabled:opacity-50 ${
-                transition.to === 'rejected'
+                isDestructive
                   ? 'bg-red-600 text-white hover:bg-red-700'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
               }`}
@@ -198,7 +217,7 @@ function TransitionButton({
               {isPending ? (
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
               ) : null}
-              Confirm
+              {transition.to === 'cancelled' ? 'Yes, Cancel Request' : 'Confirm'}
             </button>
           </div>
         </div>
@@ -212,6 +231,7 @@ export default function RequirementDetail({
   workflowHistory,
   availableTransitions,
   stockData,
+  linkedPOs = [],
   currentRole,
 }: RequirementDetailProps) {
   const [, startTransition] = useTransition();
@@ -266,15 +286,21 @@ export default function RequirementDetail({
               Edit
             </Link>
           )}
-          {availableTransitions.map((t) => (
-            <TransitionButton
-              key={t.event}
-              transition={t}
-              requirementId={requirement.id}
-              currentStatus={requirement.status}
-              onDone={handleTransitionDone}
-            />
-          ))}
+          {availableTransitions
+            .filter((t) => {
+              // Hide "Raise PO" if a PO already exists — it was auto-created on approval
+              if (t.event === 'raise_po' && linkedPOs.length > 0) return false
+              return true
+            })
+            .map((t) => (
+              <TransitionButton
+                key={t.event}
+                transition={t}
+                requirementId={requirement.id}
+                currentStatus={requirement.status}
+                onDone={handleTransitionDone}
+              />
+            ))}
         </div>
       </div>
 
@@ -295,7 +321,7 @@ export default function RequirementDetail({
           </Link>
         </div>
       )}
-      {requirement.status === 'approved' && (
+      {requirement.status === 'approved' && linkedPOs.length === 0 && (
         <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-green-900">✅ Approved — Ready for Purchase Order</p>
@@ -308,6 +334,22 @@ export default function RequirementDetail({
             className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm"
           >
             Create Purchase Order →
+          </Link>
+        </div>
+      )}
+      {requirement.status === 'in_progress' && linkedPOs.length > 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-blue-900">🛒 Purchase Order Created — Awaiting Approval</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              A Purchase Order has been raised and is pending approval. Once approved, the vendor will be notified.
+            </p>
+          </div>
+          <Link
+            href={`/procurement/purchase-orders/${linkedPOs[0].id}`}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            View PO {linkedPOs[0].po_number} →
           </Link>
         </div>
       )}
@@ -333,6 +375,14 @@ export default function RequirementDetail({
           }
         />
         <InfoCard
+          label="Assigned Approver"
+          value={
+            requirement.assigned_approver?.full_name ??
+            requirement.assigned_approver?.email ??
+            '(Auto-assign by role)'
+          }
+        />
+        <InfoCard
           label="Approved By"
           value={
             requirement.approved_by_profile?.full_name ??
@@ -352,7 +402,27 @@ export default function RequirementDetail({
               : '—'
           }
         />
+        <InfoCard
+          label="Preferred Vendor"
+          value={requirement.preferred_vendor?.name ?? '— Any vendor —'}
+        />
+        {requirement.requested_on_behalf_of && (
+          <InfoCard
+            label="On Behalf Of"
+            value={requirement.requested_on_behalf_of}
+          />
+        )}
       </div>
+
+      {/* Reason block */}
+      {requirement.reason && (
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 mb-1">
+            Reason for Request
+          </p>
+          <p className="text-sm text-blue-900">{requirement.reason}</p>
+        </div>
+      )}
 
       {/* 3. Line Items */}
       <section className="rounded-xl border border-gray-200 bg-white">
@@ -422,7 +492,69 @@ export default function RequirementDetail({
         </section>
       )}
 
-      {/* 5. Workflow History */}
+      {/* 5. Linked Purchase Orders */}
+      {linkedPOs.length > 0 && (
+        <section className="rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 px-6 py-4 flex items-center gap-2">
+            <ShoppingCart className="h-4 w-4 text-gray-400" />
+            <h2 className="text-sm font-semibold text-gray-900">
+              Linked Purchase Orders
+              <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-xs font-medium text-blue-700">
+                {linkedPOs.length}
+              </span>
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-100 text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">PO Number</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Vendor</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Status</th>
+                  <th className="px-4 py-2 text-right font-medium text-gray-500">Total Amount</th>
+                  <th className="px-4 py-2 text-left font-medium text-gray-500">Created</th>
+                  <th className="px-4 py-2" />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 bg-white">
+                {linkedPOs.map((po) => (
+                  <tr key={po.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 font-mono text-xs font-semibold text-blue-700">
+                      {po.po_number ?? po.id.substring(0, 8)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">
+                      {Array.isArray(po.vendor)
+                        ? (po.vendor[0]?.name ?? '—')
+                        : (po.vendor as any)?.name ?? '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={po.status ?? 'draft'} />
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      {po.total_amount != null
+                        ? `${po.currency ?? 'USD'} ${Number(po.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 text-xs">
+                      {formatDate(po.created_at)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/procurement/purchase-orders/${po.id}`}
+                        className="text-xs font-medium text-blue-600 hover:underline"
+                      >
+                        View →
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* 6. Workflow History */}
       <section className="rounded-xl border border-gray-200 bg-white">
         <div className="border-b border-gray-100 px-6 py-4">
           <h2 className="text-sm font-semibold text-gray-900">Workflow History</h2>

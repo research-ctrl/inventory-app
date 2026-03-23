@@ -29,7 +29,7 @@ export function DataTable<TData>({
   columns,
   searchPlaceholder = 'Search…',
   searchColumn,
-  pageSize = 20,
+  pageSize = 50,
 }: DataTableProps<TData>) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
@@ -69,14 +69,13 @@ export function DataTable<TData>({
     } else {
       setGlobalFilter(value)
     }
-    // Reset to first page on search
     table.setPageIndex(0)
   }
 
   const { pageIndex } = table.getState().pagination
   const pageCount = table.getPageCount()
   const totalRows = table.getFilteredRowModel().rows.length
-  const startRow = pageIndex * pageSize + 1
+  const startRow = totalRows === 0 ? 0 : pageIndex * pageSize + 1
   const endRow = Math.min(startRow + pageSize - 1, totalRows)
 
   return (
@@ -92,9 +91,14 @@ export function DataTable<TData>({
         />
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200">
-        <table className="w-full text-sm">
+      {/* Table
+          IMPORTANT: we use a plain div with overflow-x-auto here BUT we
+          avoid setting any overflow-y so that absolutely-positioned children
+          (dropdowns, tooltips, modals) can extend beyond the table boundary
+          without being clipped. Dialogs that must appear above everything
+          should use position:fixed with a z-index > 50. */}
+      <div className="w-full rounded-lg border border-gray-200 bg-white overflow-x-auto">
+        <table className="w-full min-w-full text-sm">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr
@@ -110,7 +114,7 @@ export function DataTable<TData>({
                       key={header.id}
                       onClick={header.column.getToggleSortingHandler()}
                       className={cn(
-                        'px-4 py-3 text-left font-medium text-gray-600 text-xs uppercase tracking-wide select-none',
+                        'px-4 py-3 text-left font-semibold text-gray-600 text-xs uppercase tracking-wide select-none whitespace-nowrap',
                         canSort ? 'cursor-pointer hover:bg-gray-100' : 'cursor-default',
                       )}
                       style={{ width: header.getSize() !== 150 ? header.getSize() : undefined }}
@@ -145,7 +149,7 @@ export function DataTable<TData>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-10 text-center text-sm text-gray-400"
+                  className="px-4 py-12 text-center text-sm text-gray-400"
                 >
                   No results found.
                 </td>
@@ -154,10 +158,10 @@ export function DataTable<TData>({
               table.getRowModel().rows.map((row) => (
                 <tr
                   key={row.id}
-                  className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                  className="border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors"
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3 text-gray-800">
+                    <td key={cell.id} className="px-4 py-3 text-gray-800 align-middle">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -169,37 +173,46 @@ export function DataTable<TData>({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-2 py-3">
-        <p className="text-sm text-gray-500">
-          {totalRows === 0
-            ? 'No results'
-            : `Showing ${startRow}–${endRow} of ${totalRows} result${totalRows !== 1 ? 's' : ''}`}
-        </p>
+      {pageCount > 1 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-1 py-2">
+          <p className="text-sm text-gray-500">
+            {totalRows === 0
+              ? 'No results'
+              : `Showing ${startRow}–${endRow} of ${totalRows} result${totalRows !== 1 ? 's' : ''}`}
+          </p>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-            className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Previous
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </button>
 
-          <span className="text-sm text-gray-600">
-            Page {pageCount === 0 ? 0 : pageIndex + 1} of {pageCount}
-          </span>
+            <span className="text-sm text-gray-600 tabular-nums">
+              {pageCount === 0 ? 0 : pageIndex + 1} / {pageCount}
+            </span>
 
-          <button
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-            className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </button>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Row count when only 1 page */}
+      {pageCount <= 1 && totalRows > 0 && (
+        <p className="px-1 text-sm text-gray-400">
+          {totalRows} result{totalRows !== 1 ? 's' : ''}
+        </p>
+      )}
     </div>
   )
 }

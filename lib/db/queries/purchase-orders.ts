@@ -46,8 +46,8 @@ export async function getPurchaseOrderById(id: string) {
       po_items(*),
       created_by_profile:profiles!purchase_orders_created_by_fkey(id, full_name, email),
       approved_by_profile:profiles!purchase_orders_approved_by_fkey(id, full_name),
-      deliveries(id, delivery_ref, status, actual_received_date),
-      payments(id, payment_ref, amount, currency, status, payment_date)
+      deliveries(id, delivery_ref, status, expected_date, actual_received_date),
+      payments(id, payment_ref, amount, currency, status, payment_date, payment_method, bank_reference)
     `)
     .eq('id', id)
     .single()

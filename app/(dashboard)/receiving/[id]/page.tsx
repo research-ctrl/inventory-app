@@ -19,6 +19,9 @@ export default async function ReceivingDetailPage({
 }: {
   params: Promise<{ id: string }>
 }) {
+  const { id } = await params
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(id)) notFound()
   const supabase = await createClient()
   const {
     data: { user },
@@ -34,7 +37,7 @@ export default async function ReceivingDetailPage({
 
   let delivery
   try {
-    delivery = await getDeliveryById((await params).id)
+    delivery = await getDeliveryById(id)
   } catch {
     notFound()
   }

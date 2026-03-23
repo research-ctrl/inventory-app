@@ -15,7 +15,13 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().optional(),
   GROQ_API_KEY: z.string().optional(),
   MISTRAL_API_KEY: z.string().optional(),
-  AI_DEFAULT_PROVIDER: z.enum(["gemini", "groq", "mistral"]).default("gemini"),
+  NVIDIA_API_KEY: z.string().optional(),
+  AI_DEFAULT_PROVIDER: z.enum(["gemini", "groq", "mistral", "nvidia"]).default("gemini"),
+
+  // Email (SendGrid)
+  SENDGRID_API_KEY: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
+  INBOUND_WEBHOOK_SECRET: z.string().optional(),
 
   // Webhook
   WEBHOOK_SECRET: z.string().optional(),

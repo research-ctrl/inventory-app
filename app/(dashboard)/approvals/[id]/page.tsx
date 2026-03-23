@@ -30,6 +30,9 @@ function entityLabel(entityType: string | null) {
 }
 
 export default async function ApprovalDetailPage({ params }: PageProps) {
+  const { id } = await params;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (!UUID_RE.test(id)) notFound()
   const sb = await createClient();
 
   const {
@@ -49,7 +52,7 @@ export default async function ApprovalDetailPage({ params }: PageProps) {
       *,
       approver:profiles!approvals_approver_id_fkey(id, full_name, email, role)
     `)
-    .eq('id', (await params).id)
+    .eq('id', id)
     .single();
 
   if (error || !approval) notFound();

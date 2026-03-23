@@ -10,15 +10,16 @@ import {
   ShoppingCart,
   CreditCard,
   Truck,
-  PackageCheck,
   FlaskConical,
   Package,
-  AlertTriangle,
+  PackageOpen,
   RefreshCw,
   MessageSquare,
   BarChart3,
   Settings,
   ShieldCheck,
+  ShieldAlert,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/auth/roles'
@@ -41,7 +42,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Overview',
     items: [
-      { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { label: 'Dashboard',       href: '/dashboard',      icon: LayoutDashboard },
+      { label: 'Notifications',   href: '/notifications',  icon: Bell },
     ],
   },
   {
@@ -58,10 +60,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Operations',
     items: [
-      { label: 'Receiving',  href: '/receiving',  icon: PackageCheck },
       { label: 'QC',         href: '/qc',         icon: FlaskConical },
       { label: 'Inventory',  href: '/inventory',  icon: Package },
-      { label: 'Issues',     href: '/issues',     icon: AlertTriangle },
+      { label: 'Issued',     href: '/issued',     icon: PackageOpen },
       { label: 'Recovery',   href: '/recovery',   icon: RefreshCw },
     ],
   },
@@ -75,8 +76,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'System',
     items: [
-      { label: 'Settings', href: '/settings', icon: Settings },
-      { label: 'Admin Panel', href: '/admin', icon: ShieldCheck },
+      { label: 'Settings',      href: '/settings',      icon: Settings },
+      { label: 'Admin Panel',   href: '/admin',         icon: ShieldCheck },
+      { label: 'Admin Portal',  href: '/admin-portal',  icon: ShieldAlert },
     ],
   },
 ]
@@ -86,9 +88,10 @@ const NAV_GROUPS: NavGroup[] = [
 interface SidebarProps {
   role?: Role
   userName?: string
+  hideBrand?: boolean
 }
 
-export function Sidebar({ role, userName }: SidebarProps) {
+export function Sidebar({ role, userName, hideBrand = false }: SidebarProps) {
   const pathname = usePathname()
 
   function isActive(href: string): boolean {
@@ -98,13 +101,15 @@ export function Sidebar({ role, userName }: SidebarProps) {
 
   return (
     <aside className="flex h-full w-64 flex-col border-r border-gray-200 bg-white">
-      {/* Logo / Brand */}
-      <div className="flex h-16 flex-shrink-0 items-center border-b border-gray-200 px-5">
-        <div>
-          <p className="text-sm font-bold text-gray-900 leading-tight">SMLS</p>
-          <p className="text-xs text-gray-400 leading-tight">Shipyard Material Lifecycle</p>
+      {/* Logo / Brand — hidden in mobile drawer (drawer has its own header) */}
+      {!hideBrand && (
+        <div className="flex h-16 flex-shrink-0 items-center border-b border-gray-200 px-5">
+          <div>
+            <p className="text-sm font-bold text-gray-900 leading-tight">SMLS</p>
+            <p className="text-xs text-gray-400 leading-tight">Shipyard Material Lifecycle</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">

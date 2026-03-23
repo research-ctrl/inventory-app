@@ -4,11 +4,16 @@ import type { CreateRequirementInput } from '@/lib/validations/requirement'
 
 export async function dbCreateRequirement(input: CreateRequirementInput, userId: string) {
   const sb = await createClient()
-  const { items, ...req } = input
+  const { items, assigned_approver_id, ...req } = input
 
   const { data: requirement, error } = await sb
     .from('requirements')
-    .insert({ ...req, requested_by: userId, status: 'draft' })
+    .insert({
+      ...req,
+      assigned_approver_id: assigned_approver_id || null,
+      requested_by: userId,
+      status: 'draft',
+    })
     .select()
     .single()
   if (error) throw new Error(error.message)

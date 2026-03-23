@@ -137,12 +137,14 @@ export const myApprovalColumns: ColumnDef<ApprovalRow>[] = [
           <ApprovalActionDialog
             approvalId={id}
             decision="approve"
+            entityType={row.original.entity_type}
             triggerLabel="Approve"
             triggerClassName="rounded-lg border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
           />
           <ApprovalActionDialog
             approvalId={id}
             decision="reject"
+            entityType={row.original.entity_type}
             triggerLabel="Reject"
             triggerClassName="rounded-lg border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-100"
           />

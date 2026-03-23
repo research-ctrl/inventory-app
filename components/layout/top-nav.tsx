@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
-import { Menu, Bell, LogOut } from 'lucide-react'
+import { type ReactNode } from 'react'
+import { Menu, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { Role } from '@/lib/auth/roles'
 import { ROLE_LABELS } from '@/lib/auth/roles'
+import { NotificationBell } from '@/components/notifications/notification-bell'
 
 interface TopNavProps {
   user?: { id: string; email?: string | null } | null
@@ -40,13 +41,11 @@ function UserAvatar({ name, email }: { name?: string | null; email?: string | nu
 }
 
 export function TopNav({ user, profile, displayName, role, breadcrumb, onMenuClick }: TopNavProps) {
-  const [notifOpen, setNotifOpen] = useState(false)
-
   const fullName = displayName ?? profile?.full_name ?? user?.email ?? ''
   const userEmail = user?.email ?? ''
 
   return (
-    <header className="flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
+    <header className="relative z-30 flex h-14 flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 lg:px-6">
       {/* Left: hamburger (mobile) + breadcrumb slot */}
       <div className="flex items-center gap-3 min-w-0">
         <button
@@ -67,32 +66,8 @@ export function TopNav({ user, profile, displayName, role, breadcrumb, onMenuCli
 
       {/* Right: notifications + user info + sign-out */}
       <div className="flex items-center gap-3">
-        {/* Notification bell */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setNotifOpen((v) => !v)}
-            className={cn(
-              'relative rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700',
-              'focus:outline-none focus:ring-2 focus:ring-blue-500',
-            )}
-            aria-label="View notifications"
-          >
-            <Bell className="h-5 w-5" />
-            <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500 ring-1 ring-white" />
-          </button>
-
-          {notifOpen && (
-            <div className="absolute right-0 z-50 mt-2 w-72 rounded-lg border border-gray-200 bg-white py-2 shadow-lg">
-              <p className="px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Notifications
-              </p>
-              <div className="px-4 py-3 text-sm text-gray-500 italic">
-                No new notifications.
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Notification bell (live — wired to DB) */}
+        <NotificationBell />
 
         {/* User avatar + info */}
         <div className="flex items-center gap-2">

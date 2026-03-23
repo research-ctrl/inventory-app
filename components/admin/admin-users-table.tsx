@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Pencil, Check, X, Phone, Briefcase, Shield, Save, UserPlus } from 'lucide-react';
-import { adminUpdateProfile, grantRoleByEmail } from '@/actions/admin';
+import { Pencil, Check, X, Phone, Briefcase, Shield, Save, UserPlus, Trash2, Activity, Mail } from 'lucide-react';
+import { adminUpdateProfile, grantRoleByEmail, deleteUser, inviteUser } from '@/actions/admin';
 import { ROLE_LABELS } from '@/lib/auth/roles';
 import type { Role } from '@/lib/auth/roles';
+import { UserActivityModal } from './user-activity-modal';
 
 interface ProfileRow {
   id: string;
@@ -164,6 +165,90 @@ function EditRow({ profile, onDone, onCancel }: EditRowProps) {
   );
 }
 
+// ── Invite User Panel ─────────────────────────────────────────────────────────
+function InviteUserPanel({ onInvited }: { onInvited?: (email: string) => void }) {
+  const [email, setEmail]       = useState('');
+  const [fullName, setFullName] = useState('');
+  const [role, setRole]         = useState<Role>('engineer');
+  const [result, setResult]     = useState<{ ok: boolean; msg: string } | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleInvite() {
+    if (!email.trim()) return;
+    setResult(null);
+    startTransition(async () => {
+      const res = await inviteUser(email.trim(), role, fullName.trim() || undefined);
+      if (res.success) {
+        setResult({ ok: true, msg: (res as any).message ?? `Invitation sent to ${email}` });
+        setEmail('');
+        setFullName('');
+        onInvited?.(email.trim());
+      } else {
+        setResult({ ok: false, msg: res.error ?? 'Unknown error' });
+      }
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-green-200 bg-green-50 p-5 shadow-sm">
+      <h3 className="text-sm font-semibold text-green-900 mb-1 flex items-center gap-2">
+        <Mail className="h-4 w-4" /> Invite New User by Email
+      </h3>
+      <p className="text-xs text-green-700 mb-3">
+        Send a Supabase magic-link invitation. The user will be pre-assigned the selected role upon sign-in.
+      </p>
+      <div className="flex flex-wrap gap-2 items-end">
+        <div className="flex-1 min-w-[200px]">
+          <label className="block text-xs font-medium text-green-800 mb-1">Email <span className="text-red-500">*</span></label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="user@example.com"
+            className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+        <div className="flex-1 min-w-[160px]">
+          <label className="block text-xs font-medium text-green-800 mb-1">Full Name (optional)</label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="John Smith"
+            className="w-full rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-green-800 mb-1">Role</label>
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as Role)}
+            className="rounded-lg border border-green-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            {ALL_ROLES.map((r) => (
+              <option key={r} value={r}>{ROLE_LABELS[r]}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          onClick={handleInvite}
+          disabled={isPending || !email.trim()}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors shadow-sm"
+        >
+          {isPending ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Mail className="h-3.5 w-3.5" />}
+          {isPending ? 'Sending…' : 'Send Invite'}
+        </button>
+      </div>
+      {result && (
+        <div className={`mt-3 rounded-lg px-3 py-2 text-sm flex items-center gap-2 ${result.ok ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+          {result.ok ? <Check className="h-4 w-4 shrink-0" /> : <X className="h-4 w-4 shrink-0" />}
+          {result.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Grant by Email Panel ──────────────────────────────────────────────────────
 function GrantByEmailPanel() {
   const [email, setEmail] = useState('');
@@ -235,6 +320,65 @@ function GrantByEmailPanel() {
   );
 }
 
+// ── Delete Confirmation Row ───────────────────────────────────────────────────
+function DeleteConfirmRow({
+  profile,
+  onConfirm,
+  onCancel,
+}: {
+  profile: ProfileRow
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+
+  function handleDelete() {
+    startTransition(async () => {
+      const result = await deleteUser(profile.id)
+      if (!result.success) { setError(result.error ?? 'Delete failed'); return }
+      onConfirm()
+    })
+  }
+
+  return (
+    <tr className="bg-red-50/70 border-l-4 border-l-red-500">
+      <td colSpan={6} className="px-6 py-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <p className="text-sm font-semibold text-red-900">
+              Delete <span className="italic">{profile.full_name ?? profile.email}</span>?
+            </p>
+            <p className="text-xs text-red-700 mt-0.5">
+              This permanently removes the account and all session data. Workflow history is retained.
+            </p>
+            {error && <p className="text-xs text-red-600 mt-1 font-medium">{error}</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleDelete}
+              disabled={isPending}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              {isPending
+                ? <span className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                : <Trash2 className="h-3 w-3" />}
+              {isPending ? 'Deleting…' : 'Yes, Delete'}
+            </button>
+            <button
+              onClick={onCancel}
+              disabled={isPending}
+              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <X className="h-3 w-3" /> Cancel
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 export default function AdminUsersTable({
   profiles: initialProfiles,
   currentUserId,
@@ -244,11 +388,13 @@ export default function AdminUsersTable({
   currentUserId: string;
   isBootstrapMode?: boolean;
 }) {
-  const [profiles, setProfiles] = useState<ProfileRow[]>(initialProfiles);
-  const [editingId, setEditingId]   = useState<string | null>(null);
-  const [search, setSearch]         = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [profiles, setProfiles]         = useState<ProfileRow[]>(initialProfiles);
+  const [editingId, setEditingId]       = useState<string | null>(null);
+  const [deletingId, setDeletingId]     = useState<string | null>(null);
+  const [activityUser, setActivityUser] = useState<ProfileRow | null>(null);
+  const [search, setSearch]             = useState('');
+  const [roleFilter, setRoleFilter]     = useState('');
+  const [successMsg, setSuccessMsg]     = useState<string | null>(null);
 
   const filtered = profiles.filter((p) => {
     const q = search.toLowerCase();
@@ -265,6 +411,13 @@ export default function AdminUsersTable({
     setProfiles((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates } : p)));
     setEditingId(null);
     setSuccessMsg(`Profile updated successfully.`);
+    setTimeout(() => setSuccessMsg(null), 3000);
+  }
+
+  function handleDeleted(id: string) {
+    setProfiles((prev) => prev.filter((p) => p.id !== id));
+    setDeletingId(null);
+    setSuccessMsg('User deleted successfully.');
     setTimeout(() => setSuccessMsg(null), 3000);
   }
 
@@ -350,25 +503,39 @@ export default function AdminUsersTable({
                   <span className="flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</span>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Actions</th>
+                <th className="w-8" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-400">
                     No users found.
                   </td>
                 </tr>
               ) : (
-                filtered.map((p) =>
-                  editingId === p.id ? (
-                    <EditRow
-                      key={p.id}
-                      profile={p}
-                      onDone={(updates) => handleDone(p.id, updates)}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  ) : (
+                filtered.map((p) => {
+                  if (editingId === p.id) {
+                    return (
+                      <EditRow
+                        key={p.id}
+                        profile={p}
+                        onDone={(updates) => handleDone(p.id, updates)}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    )
+                  }
+                  if (deletingId === p.id) {
+                    return (
+                      <DeleteConfirmRow
+                        key={p.id}
+                        profile={p}
+                        onConfirm={() => handleDeleted(p.id)}
+                        onCancel={() => setDeletingId(null)}
+                      />
+                    )
+                  }
+                  return (
                     <tr
                       key={p.id}
                       className={`hover:bg-gray-50 transition-colors ${p.id === currentUserId ? 'bg-blue-50/20' : ''}`}
@@ -399,25 +566,56 @@ export default function AdminUsersTable({
                         {p.phone_number ?? <span className="text-gray-300 text-xs">—</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <button
-                          onClick={() => setEditingId(p.id)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50 transition-colors shadow-sm"
-                        >
-                          <Pencil className="h-3 w-3" />
-                          Edit
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => { setEditingId(p.id); setDeletingId(null) }}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:text-blue-700 hover:bg-blue-50 transition-colors shadow-sm"
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => setActivityUser(p)}
+                            title="View activity"
+                            className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white h-7 w-7 text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 transition-colors shadow-sm"
+                          >
+                            <Activity className="h-3 w-3" />
+                          </button>
+                          {p.id !== currentUserId && (
+                            <button
+                              onClick={() => { setDeletingId(p.id); setEditingId(null) }}
+                              title="Delete user"
+                              className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white h-7 w-7 text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors shadow-sm"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          )}
+                        </div>
                       </td>
+                      <td />
                     </tr>
                   )
-                )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      {/* Invite New User */}
+      <InviteUserPanel />
+
       {/* Grant by Email */}
       <GrantByEmailPanel />
+
+      {/* Activity modal */}
+      {activityUser && (
+        <UserActivityModal
+          userId={activityUser.id}
+          userName={activityUser.full_name ?? activityUser.email}
+          onClose={() => setActivityUser(null)}
+        />
+      )}
 
       {/* Role Legend */}
       <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">

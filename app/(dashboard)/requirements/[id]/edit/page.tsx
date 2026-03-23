@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getRequirementById, getVessels, getDepartments } from '@/lib/db/queries/requirements';
+import { getRequirementById, getVessels, getDepartments, getApprovers } from '@/lib/db/queries/requirements';
+import { createClient } from '@/lib/supabase/server';
 import RequirementForm from '@/components/requirements/requirement-form';
 import { PageHeader } from '@/components/shared/page-header';
 
@@ -39,7 +40,13 @@ export default async function EditRequirementPage({ params }: PageProps) {
     );
   }
 
-  const [vessels, departments] = await Promise.all([getVessels(), getDepartments()]);
+  const sb = await createClient();
+  const [vessels, departments, approvers, { data: vendors }] = await Promise.all([
+    getVessels(),
+    getDepartments(),
+    getApprovers(),
+    sb.from('vendors').select('id, name, email').eq('is_active', true).order('name'),
+  ]);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -61,6 +68,8 @@ export default async function EditRequirementPage({ params }: PageProps) {
           initialData={requirement}
           vessels={vessels}
           departments={departments}
+          approvers={approvers}
+          vendors={vendors ?? []}
         />
       </div>
     </div>

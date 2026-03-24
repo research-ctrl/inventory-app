@@ -24,7 +24,7 @@ export async function startInspection(
       operatorId
     )
     revalidatePath('/qc')
-    revalidatePath(`/receiving/${parsed.data.delivery_id}`)
+    revalidatePath(`/procurement/deliveries/${parsed.data.delivery_id}`)
     revalidatePath(`/qc/inspections/${parsed.data.delivery_id}`)
     return { success: true, data }
   } catch (e: any) {
@@ -42,7 +42,7 @@ export async function submitInspectionResult(
     if (!parsed.success) return { success: false, error: JSON.stringify(parsed.error.flatten()) }
     const data = await dbSubmitInspectionResult(parsed.data, operatorId)
     revalidatePath('/qc')
-    revalidatePath('/receiving')
+    revalidatePath('/procurement/deliveries')
     return { success: true, data }
   } catch (e: any) {
     return { success: false, error: e.message }

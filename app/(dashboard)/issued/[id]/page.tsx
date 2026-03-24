@@ -20,7 +20,7 @@ export default async function IssuedDetailPage({
     .from('material_issues')
     .select(`
       *,
-      pin:inventory_pins(pin_number, description, category, unit),
+      pin:inventory_pins(pin_number, description, category, item_category, unit),
       issued_to_profile:profiles!material_issues_issued_to_fkey(full_name, role, email),
       issued_by_profile:profiles!material_issues_issued_by_fkey(full_name),
       approved_by_profile:profiles!material_issues_approved_by_fkey(full_name),

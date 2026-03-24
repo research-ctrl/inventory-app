@@ -87,3 +87,13 @@ export async function getApprovers() {
     .order('full_name')
   return data ?? []
 }
+
+/** All active profiles — used for "on behalf of" search in the request form */
+export async function getProfiles() {
+  const sb = await createClient()
+  const { data } = await sb
+    .from('profiles')
+    .select('id, full_name, email, role')
+    .order('full_name')
+  return (data ?? []) as Array<{ id: string; full_name: string | null; email: string; role: string }>
+}

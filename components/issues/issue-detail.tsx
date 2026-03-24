@@ -11,7 +11,9 @@ import {
   issueMaterial,
 } from '@/actions/issues'
 import UsageOutcomePanel from './usage-outcome-panel'
+import RecordReturnModal from './record-return-modal'
 import Link from 'next/link'
+import { RotateCcw } from 'lucide-react'
 
 interface IssueDetailProps {
   issue: {
@@ -28,7 +30,7 @@ interface IssueDetailProps {
     usage_outcome: string | null
     outcome_notes: string | null
     outcome_captured_at: string | null
-    pin: { pin_number: string; description: string; category: string | null }
+    pin: { pin_number: string; description: string; category: string | null; item_category: string | null }
     issued_to_profile: { full_name: string | null; role: string }
     issued_by_profile: { full_name: string | null } | null
     approved_by_profile: { full_name: string | null } | null
@@ -69,6 +71,7 @@ export default function IssueDetail({ issue, workflowHistory }: IssueDetailProps
   const [rejectComment, setRejectComment] = useState('')
   const [showRejectInput, setShowRejectInput] = useState(false)
   const [showOutcomePanel, setShowOutcomePanel] = useState(false)
+  const [showReturnModal, setShowReturnModal] = useState(false)
 
   function requireOperator(): string | null {
     if (!operator?.id) {
@@ -188,12 +191,23 @@ export default function IssueDetail({ issue, workflowHistory }: IssueDetailProps
             )}
 
             {issue.status === 'issued' && !issue.usage_outcome && !showOutcomePanel && (
-              <button
-                onClick={() => setShowOutcomePanel(true)}
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700"
-              >
-                Capture Usage Outcome
-              </button>
+              <div className="flex gap-2">
+                {issue.pin.item_category === 'returnable' && (
+                  <button
+                    onClick={() => setShowReturnModal(true)}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Record Return
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowOutcomePanel(true)}
+                  className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700"
+                >
+                  Capture Usage Outcome
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -367,6 +381,24 @@ export default function IssueDetail({ issue, workflowHistory }: IssueDetailProps
             ))}
           </ol>
         </div>
+      )}
+
+      {showReturnModal && (
+        <RecordReturnModal
+          issue={{
+            id: issue.id,
+            pin_id: (issue as any).pin_id || (issue.pin as any).id,
+            quantity: issue.quantity,
+            quantity_returned: issue.quantity_returned,
+            unit: issue.unit,
+            issue_number: issue.issue_number
+          }}
+          onClose={() => setShowReturnModal(false)}
+          onSuccess={() => {
+            setShowReturnModal(false)
+            router.refresh()
+          }}
+        />
       )}
     </div>
   )

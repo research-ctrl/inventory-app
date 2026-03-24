@@ -198,7 +198,7 @@ export default function ApprovalActionDialog({
                         <p className="text-xs text-amber-700 font-medium">No accounts emails configured</p>
                         <p className="text-xs text-amber-600 mt-0.5">
                           Approval will proceed without finance notification.{' '}
-                          <Link href="/admin-portal/settings" target="_blank" className="underline font-semibold hover:text-amber-800">
+                          <Link href="/admin" target="_blank" className="underline font-semibold hover:text-amber-800">
                             Add in Settings →
                           </Link>
                         </p>

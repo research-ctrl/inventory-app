@@ -1,5 +1,6 @@
 'use server'
 import { revalidatePath } from 'next/cache'
+import { getServerSession } from '@/lib/auth/session'
 import {
   dbIntakeDelivery,
   dbAdjustStock,
@@ -8,6 +9,7 @@ import {
   dbHoldPin,
   dbReleaseHold,
 } from '@/lib/db/mutations/inventory'
+import { createClient } from '@/lib/supabase/server'
 import {
   IntakeDeliverySchema,
   AdjustStockSchema,
@@ -33,7 +35,7 @@ export async function intakeDelivery(
     const pins = await dbIntakeDelivery(parsed.data, operatorId)
     revalidatePath('/inventory')
     revalidatePath('/inventory/pins')
-    revalidatePath(`/receiving/${parsed.data.delivery_id}`)
+    revalidatePath(`/procurement/deliveries/${parsed.data.delivery_id}`)
 
     // Fire-and-forget: notify the original requester that their items have arrived
     notifyRequesterOnReceipt(parsed.data.delivery_id).catch(() => {})
@@ -176,6 +178,96 @@ export async function releaseHold(
     revalidatePath('/inventory/pins')
     revalidatePath(`/inventory/pins/${pinId}`)
     return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e.message }
+  }
+}
+
+// ─── Direct Stock Intake ───────────────────────────────────────────────────────
+// Adds items to inventory directly (external purchases, opening stock,
+// enquiry-based procurement, etc.) without requiring a formal PO/QC flow.
+
+export interface DirectStockItem {
+  /** Existing PIN id to add stock to — OR leave blank to create a new PIN */
+  pin_id?: string
+  description: string
+  part_number?: string
+  category?: string
+  unit: string
+  quantity: number
+  unit_cost?: number
+  location_id: string
+  vendor_id?: string
+  notes?: string
+}
+
+export async function addStockDirectly(
+  items: DirectStockItem[],
+  reference?: string  // e.g. "External purchase" or "Enquiry REQ-000123"
+): Promise<{ success: boolean; pins?: any[]; error?: string }> {
+  try {
+    const { profile } = await getServerSession()
+    const sb = await createClient()
+    const createdPins: any[] = []
+
+    for (const item of items) {
+      let pinId = item.pin_id
+
+      if (!pinId) {
+        // Create a new inventory PIN
+        const { data: pin, error: pinErr } = await sb
+          .from('inventory_pins')
+          .insert({
+            description: item.description,
+            part_number: item.part_number ?? null,
+            category: item.category ?? null,
+            unit: item.unit,
+            location_id: item.location_id,
+            vendor_id: item.vendor_id ?? null,
+            status: 'approved',
+            origin_type: 'procurement',
+            origin_reference: reference ?? 'direct_intake',
+          })
+          .select()
+          .single()
+        if (pinErr || !pin) throw new Error(pinErr?.message ?? 'Failed to create PIN')
+        pinId = (pin as any).id
+        createdPins.push(pin)
+      } else {
+        createdPins.push({ id: pinId, description: item.description })
+      }
+
+      // Get current stock
+      const { data: txRows } = await sb
+        .from('inventory_transactions')
+        .select('quantity')
+        .eq('pin_id', pinId)
+      const currentStock = (txRows ?? []).reduce((s: number, t: any) => s + (t.quantity ?? 0), 0)
+
+      // Create receipt transaction
+      const { error: txErr } = await sb.from('inventory_transactions').insert({
+        pin_id: pinId,
+        transaction_type: 'receipt',
+        quantity: item.quantity,
+        quantity_before: currentStock,
+        quantity_after: currentStock + item.quantity,
+        reference_type: 'manual',
+        reference_id: null,
+        location_id: item.location_id,
+        unit_cost: item.unit_cost ?? null,
+        notes: item.notes
+          ? item.notes
+          : reference
+          ? `Direct intake — ${reference}`
+          : 'Direct stock intake',
+        actor_id: profile.id,
+      })
+      if (txErr) throw new Error(txErr.message)
+    }
+
+    revalidatePath('/inventory')
+    revalidatePath('/inventory/pins')
+    return { success: true, pins: createdPins }
   } catch (e: any) {
     return { success: false, error: e.message }
   }

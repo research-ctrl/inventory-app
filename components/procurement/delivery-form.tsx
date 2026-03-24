@@ -95,7 +95,7 @@ export default function DeliveryForm({
         setServerError(typeof result.error === 'string' ? result.error : JSON.stringify(result.error))
         return
       }
-      router.push('/receiving')
+      router.push('/procurement/deliveries')
     } catch (e: any) {
       setServerError(e.message ?? 'An unexpected error occurred.')
     } finally {

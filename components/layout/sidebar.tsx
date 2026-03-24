@@ -18,7 +18,6 @@ import {
   BarChart3,
   Settings,
   ShieldCheck,
-  ShieldAlert,
   Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -50,20 +49,26 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Procurement',
     items: [
       { label: 'Requirements',    href: '/requirements',                  icon: ClipboardList },
-      { label: 'Approvals',       href: '/approvals',                     icon: CheckSquare },
+      { label: 'Review',          href: '/procurement/review',            icon: CheckSquare },
       { label: 'Vendors',         href: '/vendors',                       icon: Building2 },
       { label: 'Purchase Orders', href: '/procurement/purchase-orders',   icon: ShoppingCart },
-      { label: 'Payments',        href: '/procurement/payments',          icon: CreditCard },
+      { label: 'Approvals',       href: '/approvals',                     icon: CheckSquare },
       { label: 'Deliveries',      href: '/procurement/deliveries',        icon: Truck },
     ],
   },
   {
-    label: 'Operations',
+    label: 'Warehouse',
     items: [
       { label: 'QC',         href: '/qc',         icon: FlaskConical },
       { label: 'Inventory',  href: '/inventory',  icon: Package },
       { label: 'Issued',     href: '/issued',     icon: PackageOpen },
       { label: 'Recovery',   href: '/recovery',   icon: RefreshCw },
+    ],
+  },
+  {
+    label: 'Finance',
+    items: [
+      { label: 'Payments',  href: '/procurement/payments',  icon: CreditCard },
     ],
   },
   {
@@ -76,9 +81,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'System',
     items: [
-      { label: 'Settings',      href: '/settings',      icon: Settings },
-      { label: 'Admin Panel',   href: '/admin',         icon: ShieldCheck },
-      { label: 'Admin Portal',  href: '/admin-portal',  icon: ShieldAlert },
+      { label: 'Settings',  href: '/settings',  icon: Settings },
+      { label: 'Admin',     href: '/admin',      icon: ShieldCheck },
     ],
   },
 ]

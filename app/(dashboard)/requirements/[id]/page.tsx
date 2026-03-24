@@ -52,7 +52,7 @@ export default async function RequirementDetailPage({ params }: PageProps) {
   ]);
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title={requirement.ref_number ?? 'Requirement'}
         description={requirement.title}

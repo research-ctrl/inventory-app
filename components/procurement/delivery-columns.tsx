@@ -20,7 +20,7 @@ export const deliveryColumns: ColumnDef<DeliveryRow>[] = [
     header: 'Delivery Ref',
     cell: ({ row }) => (
       <Link
-        href={`/receiving/${row.original.id}`}
+        href={`/procurement/deliveries/${row.original.id}`}
         className="font-mono text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
       >
         {row.original.delivery_ref}

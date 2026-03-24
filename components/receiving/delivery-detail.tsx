@@ -78,12 +78,16 @@ interface DeliveryDetailProps {
 }
 
 const TRANSITION_STYLES: Record<string, string> = {
+  dispatch: 'bg-blue-600 text-white hover:bg-blue-700',
   receive: 'bg-green-600 text-white hover:bg-green-700',
-  send_to_qc: 'bg-blue-600 text-white hover:bg-blue-700',
+  send_to_qc: 'bg-teal-600 text-white hover:bg-teal-700',
   cancel: 'bg-gray-600 text-white hover:bg-gray-700',
   pass_inspection: 'bg-emerald-600 text-white hover:bg-emerald-700',
   fail_inspection: 'bg-red-600 text-white hover:bg-red-700',
+  conditional_inspection: 'bg-amber-600 text-white hover:bg-amber-700',
   accept_into_inventory: 'bg-indigo-600 text-white hover:bg-indigo-700',
+  delay: 'bg-orange-600 text-white hover:bg-orange-700',
+  resume: 'bg-blue-600 text-white hover:bg-blue-700',
 }
 
 function fmtDate(d: string | null | undefined) {
@@ -169,7 +173,7 @@ export default function DeliveryDetail({
             const style = TRANSITION_STYLES[t.event] ?? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             return (
               <button
-                key={t.event}
+                key={`${t.event}-${t.to}`}
                 onClick={() => handleTransition(t)}
                 disabled={isPending}
                 className={`inline-flex items-center px-3.5 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 ${style}`}

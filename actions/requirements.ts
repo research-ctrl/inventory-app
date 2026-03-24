@@ -9,7 +9,7 @@ import { dbCreateRequirement, dbTransitionRequirement, dbUpdateRequirement } fro
 import { dbCreateApproval } from '@/lib/db/mutations/approvals'
 import { canTransition } from '@/lib/workflow/transitions'
 import type { CreateRequirementInput } from '@/lib/validations/requirement'
-import { sendRequirementPendingApproval, sendRequirementCancelled, sendRequirementCreatedProcurement } from '@/lib/email/send'
+import { sendRequirementCancelled, sendRequirementCreatedProcurement, sendPurchaseRequestToApprover } from '@/lib/email/send'
 
 /** Roles that can act as approvers, in priority order */
 const APPROVER_ROLES = ['approver', 'procurement_manager', 'admin', 'super_admin'] as const
@@ -43,12 +43,70 @@ export async function createRequirement(formData: CreateRequirementInput) {
     const data = await dbCreateRequirement(parsed.data, profile.id)
     revalidatePath('/requirements')
 
-    // Notify all procurement managers about the new requirement (fire-and-forget)
+    // Notify procurement managers (always)
     notifyProcurementManagers(data, profile.full_name ?? user.email, parsed.data).catch(() => {})
+
+    // For urgent/critical PURCHASE requests: also notify approvers immediately
+    if (
+      parsed.data.request_type === 'to_order' &&
+      ['urgent', 'critical'].includes(parsed.data.urgency ?? '')
+    ) {
+      notifyApproversOfUrgentPurchase(data, profile.full_name ?? user.email, parsed.data).catch(() => {})
+    }
 
     return { success: true, data }
   } catch (e: any) {
     return { success: false, error: e.message }
+  }
+}
+
+/** Fire-and-forget: email approvers about urgent/critical purchase requests */
+async function notifyApproversOfUrgentPurchase(
+  req: any,
+  requesterName: string,
+  input: CreateRequirementInput
+): Promise<void> {
+  try {
+    const sb = await createClient()
+
+    // Fetch approvers
+    const { data: approvers } = await sb
+      .from('profiles')
+      .select('email, full_name')
+      .in('role', ['approver', 'procurement_manager', 'admin', 'super_admin'])
+    if (!approvers?.length) return
+
+    // Fetch preferred vendor name
+    let vendorName: string | undefined
+    if (input.preferred_vendor_id) {
+      const { data: vend } = await sb.from('vendors').select('name').eq('id', input.preferred_vendor_id).single()
+      vendorName = (vend as any)?.name
+    }
+
+    // Build items list from the parsed input
+    const items = (input.items ?? []).map((item: any) => ({
+      description: item.description ?? 'Unknown item',
+      quantity: item.quantity ?? 1,
+      unit: item.unit ?? 'pcs',
+      estimated_unit_price: item.estimated_unit_price ?? null,
+    }))
+
+    const promises = approvers.map((approver: any) =>
+      sendPurchaseRequestToApprover({
+        approverEmail:  approver.email,
+        approverName:   approver.full_name ?? approver.email,
+        ref:            req.ref_number ?? req.id,
+        title:          req.title,
+        requesterName,
+        urgency:        input.urgency ?? 'urgent',
+        items,
+        vendorName,
+        requirementId:  req.id,
+      })
+    )
+    await Promise.allSettled(promises)
+  } catch {
+    // Non-fatal
   }
 }
 
@@ -161,43 +219,13 @@ export async function transitionRequirement(id: string, toStatus: string, commen
       }
     }
 
-    // When submitted for approval → create an approval record + notify approver
-    if (toStatus === 'pending_approval' && req) {
-      // Use assigned approver if present, otherwise find one by role
-      let approverId = (req as any).assigned_approver_id
-      if (!approverId) {
-        approverId = await findApprover(sb)
-      }
-
-      if (approverId) {
-        const due = new Date()
-        due.setDate(due.getDate() + 3)
-        const dueDateStr = due.toISOString().split('T')[0]
-        const newApproval = await dbCreateApproval('requirement', id, approverId, 1, dueDateStr)
-
-        // Fetch approver details for email
-        const { data: approver } = await sb
-          .from('profiles')
-          .select('email, full_name')
-          .eq('id', approverId)
-          .single()
-
-        if (approver?.email) {
-          const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-          await sendRequirementPendingApproval({
-            approverEmail:   approver.email,
-            approverName:    approver.full_name ?? approver.email,
-            ref:             (req as any).ref_number ?? id,
-            title:           (req as any).title,
-            requesterName:   profile.full_name ?? user.email,
-            urgency:         (req as any).urgency ?? 'routine',
-            dueDate:         dueDateStr,
-            requirementId:   id,
-            approvalToken:   (newApproval as any).approval_token,
-            appUrl,
-          })
-        }
-      }
+    // When submitted → notify procurement managers (no formal approval needed)
+    if (toStatus === 'submitted' && req) {
+      notifyProcurementManagers(
+        { ref_number: (req as any).ref_number, id, title: (req as any).title },
+        profile.full_name ?? user.email,
+        { urgency: (req as any).urgency ?? 'routine' } as any
+      ).catch(() => {})
     }
 
     revalidatePath('/requirements')

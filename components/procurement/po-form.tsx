@@ -26,7 +26,21 @@ interface RequirementRow {
 interface PoFormProps {
   vendors: VendorRow[]
   requirements?: RequirementRow[]
-  initialRequirement?: { id: string; ref_number: string; title: string } | null
+  initialRequirement?: { 
+    id: string; 
+    ref_number: string; 
+    title: string; 
+    preferred_vendor_id?: string | null;
+    items?: Array<{
+      description: string;
+      part_number?: string | null;
+      quantity: number;
+      unit: string;
+      unit_price?: number | null;
+      currency?: string | null;
+      notes?: string | null;
+    }>;
+  } | null
   onSuccess?: () => void
 }
 
@@ -82,27 +96,40 @@ export default function PoForm({
     resolver: zodResolver(CreatePurchaseOrderSchema) as any,
     defaultValues: {
       requirement_id: initialRequirement?.id ?? null,
-      vendor_id: '',
+      vendor_id: initialRequirement?.preferred_vendor_id ?? '',
       payment_terms: '',
       delivery_address: '',
       incoterms: 'FOB',
-      currency: 'USD',
+      currency: initialRequirement?.items?.[0]?.currency ?? 'USD',
       expected_delivery: null,
       notes: '',
-      items: [
-        {
-          line_number: 1,
-          description: '',
-          part_number: '',
-          quantity: 1,
-          unit: 'pcs',
-          unit_price: 0,
-          currency: 'USD',
-          tax_rate: 0,
-          discount_rate: 0,
-          notes: '',
-        },
-      ],
+      items: initialRequirement?.items?.length 
+        ? initialRequirement.items.map((item, idx) => ({
+            line_number: idx + 1,
+            description: item.description,
+            part_number: item.part_number ?? '',
+            quantity: item.quantity,
+            unit: item.unit,
+            unit_price: item.unit_price ?? 0,
+            currency: item.currency ?? 'USD',
+            tax_rate: 0,
+            discount_rate: 0,
+            notes: item.notes ?? '',
+          }))
+        : [
+          {
+            line_number: 1,
+            description: '',
+            part_number: '',
+            quantity: 1,
+            unit: 'pcs',
+            unit_price: 0,
+            currency: 'USD',
+            tax_rate: 0,
+            discount_rate: 0,
+            notes: '',
+          },
+        ],
     },
   })
 

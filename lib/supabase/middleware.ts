@@ -3,16 +3,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
 const PROTECTED_PREFIXES = ["/dashboard", "/requirements", "/approvals",
-  "/vendors", "/procurement", "/receiving", "/qc", "/inventory",
-  "/issues", "/recovery", "/chatbot", "/reports", "/settings",
-  "/admin", "/admin-portal"];
+  "/vendors", "/procurement", "/qc", "/inventory",
+  "/issued", "/recovery", "/chatbot", "/reports", "/settings",
+  "/admin"];
 
 const PUBLIC_ROUTES = [
   "/sign-in", "/sign-up", "/api/health",
-  // Admin portal auth pages are public (no session required to reach them)
-  "/admin-portal/sign-in", "/admin-portal/sign-up",
-  // Token-based approval page — no login required (token IS the credential)
+  // Token-based approval pages — no login required (token IS the credential)
   "/approve",
+  "/approvals/inventory-release",
 ];
 
 function isProtected(pathname: string): boolean {

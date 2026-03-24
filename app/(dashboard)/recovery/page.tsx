@@ -1,15 +1,38 @@
+import { createClient } from '@/lib/supabase/server'
+import RecoveryList from '@/components/recovery/recovery-list'
+import { PageHeader } from '@/components/shared/page-header'
+
 export const metadata = { title: "Recovery | SMLS" };
 
-export default function Page() {
+export default async function RecoveryPage() {
+  const sb = await createClient()
+
+  const { data: recoveries } = await sb
+    .from('recoveries')
+    .select(`
+      *,
+      issue:material_issues (
+        issue_number,
+        purpose,
+        vessel:vessels ( name ),
+        issued_to_profile:profiles!material_issues_issued_to_fkey ( full_name )
+      ),
+      pin:inventory_pins (
+        pin_number,
+        description,
+        unit
+      )
+    `)
+    .order('created_at', { ascending: false })
+
   return (
-    <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Recovery</h1>
-        <p className="text-muted-foreground">Manage material recovery</p>
-      </div>
-      <div className="rounded-lg border bg-card p-6 shadow-sm">
-        <p className="text-sm text-muted-foreground">Module under construction.</p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader 
+        title="Material Recovery & Returns" 
+        description="Assess the condition of returned materials and decide their final disposition."
+      />
+
+      <RecoveryList recoveries={(recoveries ?? []) as any} />
     </div>
   );
 }

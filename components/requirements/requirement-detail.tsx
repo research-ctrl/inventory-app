@@ -5,7 +5,6 @@ import { format } from 'date-fns';
 import Link from 'next/link';
 import { Pencil, ShoppingCart } from 'lucide-react';
 import { StatusBadge } from '@/components/shared/status-badge';
-import StockCheckPanel from './stock-check-panel';
 import { transitionRequirement } from '@/actions/requirements';
 
 interface WorkflowHistoryEntry {
@@ -42,7 +41,6 @@ interface RequirementDetailProps {
   requirement: any;
   workflowHistory: WorkflowHistoryEntry[];
   availableTransitions: AvailableTransition[];
-  stockData?: any[];
   linkedPOs?: LinkedPO[];
   currentRole: string;
 }
@@ -230,7 +228,6 @@ export default function RequirementDetail({
   requirement,
   workflowHistory,
   availableTransitions,
-  stockData,
   linkedPOs = [],
   currentRole,
 }: RequirementDetailProps) {
@@ -294,7 +291,7 @@ export default function RequirementDetail({
             })
             .map((t) => (
               <TransitionButton
-                key={t.event}
+                key={`${t.event}-${t.to}`}
                 transition={t}
                 requirementId={requirement.id}
                 currentStatus={requirement.status}
@@ -305,19 +302,49 @@ export default function RequirementDetail({
       </div>
 
       {/* Workflow context banners */}
+      {requirement.status === 'submitted' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-blue-900">📋 Submitted for Review</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              This request has been submitted and is awaiting procurement review.
+            </p>
+          </div>
+        </div>
+      )}
+      {requirement.status === 'to_release_from_inventory' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-blue-900">📦 Requested for Inventory Release</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              Material has been requested from stock and is awaiting procurement review.
+            </p>
+          </div>
+        </div>
+      )}
       {requirement.status === 'pending_approval' && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-amber-900">⏳ Awaiting Approval</p>
+            <p className="text-sm font-semibold text-amber-900">⏱️ Awaiting Release Approval</p>
             <p className="text-xs text-amber-700 mt-0.5">
-              This requirement has been submitted and is pending approver review.
+              Approval has been requested to release this material from inventory.
+            </p>
+          </div>
+        </div>
+      )}
+      {requirement.status === 'issued' && (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-green-900">✅ Material Issued</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              Expected material has been successfully issued from inventory and stock reduced.
             </p>
           </div>
           <Link
-            href="/approvals"
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm"
+            href={`/inventory/transactions`}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm"
           >
-            View Approvals →
+            Terminal Transactions →
           </Link>
         </div>
       )}
@@ -485,12 +512,6 @@ export default function RequirementDetail({
         </div>
       </section>
 
-      {/* 4. Stock Check Panel */}
-      {items.length > 0 && (
-        <section className="rounded-xl border border-gray-200 bg-white p-6 space-y-4">
-          <StockCheckPanel items={items} stockData={stockData} />
-        </section>
-      )}
 
       {/* 5. Linked Purchase Orders */}
       {linkedPOs.length > 0 && (

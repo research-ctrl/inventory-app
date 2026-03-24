@@ -96,7 +96,7 @@ export default function IssueForm({ pins, profiles, vessels, onSuccess }: IssueF
       if (onSuccess) {
         onSuccess(createResult.data)
       } else {
-        router.push(`/issues/${createResult.data.id}`)
+        router.push(`/issued/${createResult.data.id}`)
       }
     } finally {
       setSubmitting(false)

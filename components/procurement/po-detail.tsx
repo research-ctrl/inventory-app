@@ -3,10 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mail, Package, Printer, Pencil } from 'lucide-react'
+import { Package, Printer, Pencil, CheckCircle2, Circle, ChevronRight } from 'lucide-react'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { PageHeader } from '@/components/shared/page-header'
-import { transitionPurchaseOrder, sendPOEmailToVendor } from '@/actions/purchase-orders'
+import { transitionPurchaseOrder } from '@/actions/purchase-orders'
+import { approvePurchaseOrder, declinePurchaseOrder, placeOrder } from '@/actions/purchase-flow'
 import PaymentForm from '@/components/procurement/payment-form'
 
 type Tab = 'details' | 'deliveries' | 'payments' | 'history'
@@ -89,18 +90,73 @@ interface PoDetailProps {
     requiresComment?: boolean
   }>
   currentRole: string
+  currentUserId?: string
 }
 
-const TRANSITION_LABELS: Record<string, { label: string; style: string }> = {
-  submit: { label: 'Submit for Approval', style: 'bg-blue-600 text-white hover:bg-blue-700' },
-  approve: { label: 'Approve', style: 'bg-green-600 text-white hover:bg-green-700' },
-  reject: { label: 'Reject', style: 'bg-red-600 text-white hover:bg-red-700' },
-  place_order: { label: 'Place Order', style: 'bg-indigo-600 text-white hover:bg-indigo-700' },
-  cancel: { label: 'Cancel PO', style: 'bg-gray-600 text-white hover:bg-gray-700' },
-  close: { label: 'Close PO', style: 'bg-slate-600 text-white hover:bg-slate-700' },
+// ─── Pipeline stages ─────────────────────────────────────────────────────────
+
+const PIPELINE_STAGES = [
+  { key: 'pending_approval', label: 'Pending Approval' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'ordered', label: 'Ordered' },
+  { key: 'delivery', label: 'Delivery' },
+  { key: 'completed', label: 'Completed' },
+] as const
+
+function stageIndex(status: string): number {
+  const map: Record<string, number> = {
+    pending_approval: 0,
+    approved: 1,
+    ordered: 2,
+    partially_delivered: 3,
+    delivered: 3,
+    qc_passed: 4,
+    closed: 4,
+    completed: 4,
+  }
+  return map[status] ?? -1
 }
 
-const REQUIRES_COMMENT = ['reject', 'cancel']
+function StatusPipeline({ currentStatus }: { currentStatus: string }) {
+  const current = stageIndex(currentStatus)
+  if (current < 0) return null
+
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white px-6 py-4">
+      <div className="flex items-center gap-1 overflow-x-auto">
+        {PIPELINE_STAGES.map((stage, idx) => {
+          const done = idx < current
+          const active = idx === current
+          return (
+            <div key={stage.key} className="flex items-center gap-1 shrink-0">
+              <div
+                className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                  active
+                    ? 'bg-blue-600 text-white'
+                    : done
+                    ? 'bg-green-100 text-green-700'
+                    : 'bg-gray-100 text-gray-400'
+                }`}
+              >
+                {done ? (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Circle className="h-3.5 w-3.5" />
+                )}
+                {stage.label}
+              </div>
+              {idx < PIPELINE_STAGES.length - 1 && (
+                <ChevronRight className="h-4 w-4 text-gray-300 shrink-0" />
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
@@ -140,7 +196,236 @@ function InfoItem({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
-export default function PoDetail({ po, availableTransitions, currentRole }: PoDetailProps) {
+// ─── Action Panels ────────────────────────────────────────────────────────────
+
+function ApprovalPanel({
+  poId,
+  onSuccess,
+  onError,
+}: {
+  poId: string
+  onSuccess: (msg: string) => void
+  onError: (msg: string) => void
+}) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [approveComment, setApproveComment] = useState('')
+  const [rejectReason, setRejectReason] = useState('')
+  const [mode, setMode] = useState<'idle' | 'approve' | 'reject'>('idle')
+
+  const handleApprove = () => {
+    startTransition(async () => {
+      const result = await approvePurchaseOrder(poId, approveComment || undefined)
+      if (result.success) {
+        onSuccess('PO approved successfully.')
+        router.refresh()
+      } else {
+        onError(typeof result.error === 'string' ? result.error : 'Failed to approve PO.')
+      }
+    })
+  }
+
+  const handleReject = () => {
+    if (!rejectReason.trim()) {
+      onError('A rejection reason is required.')
+      return
+    }
+    startTransition(async () => {
+      const result = await declinePurchaseOrder(poId, rejectReason)
+      if (result.success) {
+        onSuccess('PO rejected.')
+        router.refresh()
+      } else {
+        onError(typeof result.error === 'string' ? result.error : 'Failed to reject PO.')
+      }
+    })
+  }
+
+  if (mode === 'approve') {
+    return (
+      <div className="rounded-xl border border-green-200 bg-green-50 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-green-900">Approve Purchase Order</h3>
+        <textarea
+          value={approveComment}
+          onChange={(e) => setApproveComment(e.target.value)}
+          rows={2}
+          placeholder="Optional comment…"
+          className="block w-full rounded-md border border-green-300 bg-white px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+        />
+        <div className="flex gap-3">
+          <button
+            onClick={handleApprove}
+            disabled={isPending}
+            className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {isPending ? 'Approving…' : 'Confirm Approve'}
+          </button>
+          <button
+            onClick={() => setMode('idle')}
+            disabled={isPending}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (mode === 'reject') {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5 space-y-4">
+        <h3 className="text-sm font-semibold text-red-900">Reject Purchase Order</h3>
+        <textarea
+          value={rejectReason}
+          onChange={(e) => setRejectReason(e.target.value)}
+          rows={2}
+          placeholder="Rejection reason (required)…"
+          className="block w-full rounded-md border border-red-300 bg-white px-3 py-2 text-sm focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+        />
+        <div className="flex gap-3">
+          <button
+            onClick={handleReject}
+            disabled={isPending}
+            className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+          >
+            {isPending ? 'Rejecting…' : 'Confirm Reject'}
+          </button>
+          <button
+            onClick={() => setMode('idle')}
+            disabled={isPending}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+      <div>
+        <p className="text-sm font-semibold text-amber-900">Awaiting Your Approval</p>
+        <p className="text-xs text-amber-700 mt-0.5">
+          Review the line items and approve or reject this purchase order.
+        </p>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setMode('approve')}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+        >
+          Approve PO
+        </button>
+        <button
+          onClick={() => setMode('reject')}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors shadow-sm"
+        >
+          Reject PO
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function PlaceOrderPanel({
+  poId,
+  onSuccess,
+  onError,
+}: {
+  poId: string
+  onSuccess: (msg: string) => void
+  onError: (msg: string) => void
+}) {
+  const router = useRouter()
+  const [isPending, startTransition] = useTransition()
+  const [deliveryDate, setDeliveryDate] = useState('')
+  const [orderNotes, setOrderNotes] = useState('')
+  const [expanded, setExpanded] = useState(false)
+
+  const handlePlaceOrder = () => {
+    startTransition(async () => {
+      const result = await placeOrder(poId, deliveryDate || undefined, orderNotes || undefined)
+      if (result.success) {
+        onSuccess('Order placed successfully. Delivery record created.')
+        router.refresh()
+      } else {
+        onError(typeof result.error === 'string' ? result.error : 'Failed to place order.')
+      }
+    })
+  }
+
+  if (!expanded) {
+    return (
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold text-blue-900">Ready to Place Order</p>
+          <p className="text-xs text-blue-700 mt-0.5">
+            This PO has been approved. Place the order with the vendor and a delivery will be created automatically.
+          </p>
+        </div>
+        <button
+          onClick={() => setExpanded(true)}
+          className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 transition-colors shadow-sm"
+        >
+          Place Order
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-4">
+      <h3 className="text-sm font-semibold text-blue-900">Place Order</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Expected Delivery Date <span className="text-gray-400">(optional)</span>
+          </label>
+          <input
+            type="date"
+            value={deliveryDate}
+            onChange={(e) => setDeliveryDate(e.target.value)}
+            className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-700 mb-1">
+            Notes <span className="text-gray-400">(optional)</span>
+          </label>
+          <input
+            type="text"
+            value={orderNotes}
+            onChange={(e) => setOrderNotes(e.target.value)}
+            placeholder="e.g. Urgent, contact vendor"
+            className="block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={handlePlaceOrder}
+          disabled={isPending}
+          className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          {isPending ? 'Placing Order…' : 'Confirm Place Order'}
+        </button>
+        <button
+          onClick={() => setExpanded(false)}
+          disabled={isPending}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function PoDetail({ po, availableTransitions, currentRole, currentUserId }: PoDetailProps) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [isPending, startTransition] = useTransition()
@@ -149,23 +434,6 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
   const [pendingTransition, setPendingTransition] = useState<{ event: string; to: string } | null>(null)
   const [showPaymentForm, setShowPaymentForm] = useState(false)
   const [actionMsg, setActionMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [sendingEmail, setSendingEmail] = useState(false)
-
-  const handleSendToVendor = async () => {
-    setSendingEmail(true)
-    try {
-      const result = await sendPOEmailToVendor(po.id)
-      if (result.success) {
-        setActionMsg({ type: 'success', text: `PO emailed to ${po.vendors?.name ?? 'vendor'} successfully.` })
-      } else {
-        setActionMsg({ type: 'error', text: typeof result.error === 'string' ? result.error : 'Failed to send email.' })
-      }
-    } catch {
-      setActionMsg({ type: 'error', text: 'Failed to send email to vendor.' })
-    } finally {
-      setSendingEmail(false)
-    }
-  }
 
   const paidTotal = (po.payments ?? [])
     .filter((p) => ['approved', 'completed'].includes(p.status))
@@ -173,16 +441,12 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
 
   const remainingAmount = Math.max(0, (po.total_amount ?? 0) - paidTotal)
 
-  const handleTransition = (t: { event: string; to: string }) => {
-    if (REQUIRES_COMMENT.includes(t.event)) {
-      setPendingTransition(t)
-      setShowCommentModal(true)
-    } else {
-      executeTransition(t.to, t.event, undefined)
-    }
+  const handleCancelTransition = (t: { event: string; to: string }) => {
+    setPendingTransition(t)
+    setShowCommentModal(true)
   }
 
-  const executeTransition = (toStatus: string, eventLabel: string, commentText?: string) => {
+  const executeCancelTransition = (toStatus: string, eventLabel: string, commentText?: string) => {
     startTransition(async () => {
       const result = await transitionPurchaseOrder(po.id, toStatus, commentText)
       if (!result.success) {
@@ -202,12 +466,19 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
     })
   }
 
+  // Cancel transitions (only show cancel/revise)
+  const cancelTransitions = availableTransitions.filter((t) =>
+    ['cancel', 'revise', 'close'].includes(t.event)
+  )
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'details', label: 'Details' },
     { id: 'deliveries', label: 'Deliveries', count: (po.deliveries ?? []).length },
     { id: 'payments', label: 'Payments', count: (po.payments ?? []).length },
     { id: 'history', label: 'Workflow History' },
   ]
+
+  const showOrderedTimeline = ['ordered', 'partially_delivered', 'delivered', 'qc_passed', 'closed', 'completed'].includes(po.status)
 
   return (
     <div className="space-y-6">
@@ -218,22 +489,6 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
       >
         <StatusBadge status={po.status} />
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Send to Vendor (when approved or ordered) */}
-          {['approved', 'ordered', 'partially_delivered', 'delivered'].includes(po.status) && po.vendors?.email && (
-            <button
-              onClick={handleSendToVendor}
-              disabled={sendingEmail || isPending}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-md border border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors disabled:opacity-50"
-            >
-              {sendingEmail ? (
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-700 border-t-transparent" />
-              ) : (
-                <Mail className="h-4 w-4" />
-              )}
-              Email to Vendor
-            </button>
-          )}
-
           {/* Edit PO — only for draft / rejected */}
           {['draft', 'rejected'].includes(po.status) && (
             <Link
@@ -254,19 +509,17 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
             Print PO
           </button>
 
-          {availableTransitions.map((t) => {
-            const style = TRANSITION_LABELS[t.event]?.style ?? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            return (
-              <button
-                key={t.event}
-                onClick={() => handleTransition(t)}
-                disabled={isPending}
-                className={`inline-flex items-center px-3.5 py-2 text-sm font-medium rounded-md transition-colors disabled:opacity-50 ${style}`}
-              >
-                {TRANSITION_LABELS[t.event]?.label ?? t.label}
-              </button>
-            )
-          })}
+          {/* Cancel/revise generic transitions */}
+          {cancelTransitions.map((t) => (
+            <button
+              key={`${t.event}-${t.to}`}
+              onClick={() => handleCancelTransition(t)}
+              disabled={isPending}
+              className="inline-flex items-center px-3.5 py-2 text-sm font-medium rounded-md bg-gray-600 text-white hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
       </PageHeader>
 
@@ -280,30 +533,61 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
           }`}
         >
           {actionMsg.text}
-        </div>
-      )}
-
-      {/* Workflow context banners */}
-      {po.status === 'pending_approval' && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-5 py-4 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-semibold text-amber-900">⏳ Awaiting Approval</p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              This PO has been submitted and is waiting for approver review.
-            </p>
-          </div>
-          <Link
-            href="/approvals"
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 transition-colors shadow-sm"
+          <button
+            onClick={() => setActionMsg(null)}
+            className="ml-3 text-xs underline opacity-70 hover:opacity-100"
           >
-            View Approvals →
-          </Link>
+            Dismiss
+          </button>
         </div>
       )}
 
+      {/* Status pipeline — shown for ordered and beyond */}
+      {showOrderedTimeline && <StatusPipeline currentStatus={po.status} />}
+
+      {/* Rejection reason */}
       {po.rejection_reason && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <span className="font-medium">Rejection reason:</span> {po.rejection_reason}
+        </div>
+      )}
+
+      {/* ── Flow-specific action panels ── */}
+
+      {/* pending_approval → Approver can approve/reject */}
+      {po.status === 'pending_approval' && (
+        <ApprovalPanel
+          poId={po.id}
+          onSuccess={(msg) => setActionMsg({ type: 'success', text: msg })}
+          onError={(msg) => setActionMsg({ type: 'error', text: msg })}
+        />
+      )}
+
+      {/* approved → PM can place order */}
+      {po.status === 'approved' && (
+        <PlaceOrderPanel
+          poId={po.id}
+          onSuccess={(msg) => setActionMsg({ type: 'success', text: msg })}
+          onError={(msg) => setActionMsg({ type: 'error', text: msg })}
+        />
+      )}
+
+      {/* ordered → Show delivery link */}
+      {po.status === 'ordered' && (po.deliveries ?? []).length > 0 && (
+        <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-green-900">Order Placed — Delivery Pending</p>
+            <p className="text-xs text-green-700 mt-0.5">
+              {(po.deliveries ?? []).length} delivery record(s) created. Track receiving below.
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('deliveries')}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm"
+          >
+            <Package className="h-4 w-4" />
+            View Deliveries
+          </button>
         </div>
       )}
 
@@ -439,18 +723,18 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
       {/* Deliveries tab */}
       {activeTab === 'deliveries' && (
         <div className="space-y-4">
-          {/* Create Delivery button when PO is approved, ordered, or partially delivered */}
-          {['approved', 'ordered', 'partially_delivered'].includes(po.status) && (
+          {/* Create Delivery button when PO is ordered or partially delivered */}
+          {['ordered', 'partially_delivered'].includes(po.status) && (
             <div className="rounded-xl border border-green-200 bg-green-50 px-5 py-4 flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-green-900">📦 Ready to Receive</p>
+                <p className="text-sm font-semibold text-green-900">Ready to Receive</p>
                 <p className="text-xs text-green-700 mt-0.5">
-                  Record a new delivery when the goods arrive from{' '}
-                  <strong>{po.vendors?.name ?? 'vendor'}</strong>. This will begin the receiving &amp; QC workflow.
+                  Record a new delivery when goods arrive from{' '}
+                  <strong>{po.vendors?.name ?? 'vendor'}</strong>.
                 </p>
               </div>
               <Link
-                href={`/receiving/new?po_id=${po.id}`}
+                href={`/procurement/deliveries/new?po_id=${po.id}`}
                 className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors shadow-sm"
               >
                 <Package className="h-4 w-4" />
@@ -459,46 +743,48 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
             </div>
           )}
 
-        <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
-          {!(po.deliveries ?? []).length ? (
-            <div className="px-6 py-12 text-center text-sm text-gray-400">
-              No deliveries recorded for this PO.{' '}
-              {['approved', 'ordered', 'partially_delivered'].includes(po.status) && (
-                <Link href={`/receiving/new?po_id=${po.id}`} className="text-blue-600 hover:underline">Record first delivery →</Link>
-              )}
-            </div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Delivery Ref</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expected Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Received Date</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {(po.deliveries ?? []).map((d) => (
-                  <tr key={d.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/receiving/${d.id}`}
-                        className="font-mono text-blue-600 hover:underline text-sm"
-                      >
-                        {d.delivery_ref}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={d.status} size="sm" />
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{fmtDate(d.expected_date)}</td>
-                    <td className="px-4 py-3 text-gray-600">{fmtDate(d.actual_received_date)}</td>
+          <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            {!(po.deliveries ?? []).length ? (
+              <div className="px-6 py-12 text-center text-sm text-gray-400">
+                No deliveries recorded for this PO.{' '}
+                {['ordered', 'partially_delivered'].includes(po.status) && (
+                  <Link href={`/procurement/deliveries/new?po_id=${po.id}`} className="text-blue-600 hover:underline">
+                    Record first delivery →
+                  </Link>
+                )}
+              </div>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Delivery Ref</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expected Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Received Date</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(po.deliveries ?? []).map((d) => (
+                    <tr key={d.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        <Link
+                          href={`/procurement/deliveries/${d.id}`}
+                          className="font-mono text-blue-600 hover:underline text-sm"
+                        >
+                          {d.delivery_ref}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusBadge status={d.status} size="sm" />
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">{fmtDate(d.expected_date)}</td>
+                      <td className="px-4 py-3 text-gray-600">{fmtDate(d.actual_received_date)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
@@ -636,7 +922,7 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
         </div>
       )}
 
-      {/* Comment modal */}
+      {/* Comment modal for cancel/revise */}
       {showCommentModal && pendingTransition && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-6">
@@ -664,7 +950,7 @@ export default function PoDetail({ po, availableTransitions, currentRole }: PoDe
                 Cancel
               </button>
               <button
-                onClick={() => executeTransition(pendingTransition.to, pendingTransition.event, comment || undefined)}
+                onClick={() => executeCancelTransition(pendingTransition.to, pendingTransition.event, comment || undefined)}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
                 disabled={isPending}
               >

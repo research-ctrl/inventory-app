@@ -20,6 +20,13 @@ const PAYMENT_METHODS = [
   { value: 'letter_of_credit', label: 'Letter of Credit' },
 ] as const
 
+const PAYMENT_TYPES = [
+  { value: 'full_payment', label: 'Full Payment' },
+  { value: 'installment', label: 'Installment' },
+  { value: 'advance', label: 'Advance Payment' },
+  { value: 'on_delivery', label: 'Payment on Delivery' },
+] as const
+
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'SGD'] as const
 
 const inputCls =
@@ -176,6 +183,18 @@ export default function PaymentForm({
           <FieldError message={errors.payment_method?.message} />
         </div>
 
+        {/* Payment Type */}
+        <div>
+          <Label>Payment Type</Label>
+          <select {...register('payment_type' as any)} className={selectCls} disabled={isPending}>
+            {PAYMENT_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {/* Bank Reference */}
         <div>
           <Label>Bank Reference</Label>
@@ -187,6 +206,22 @@ export default function PaymentForm({
           />
           <FieldError message={errors.bank_reference?.message} />
         </div>
+
+        {/* Due Date */}
+        <div>
+          <Label>Due Date</Label>
+          <input
+            {...register('due_date' as any)}
+            type="date"
+            className={inputCls}
+            disabled={isPending}
+          />
+        </div>
+      </div>
+
+      {/* Approval notice */}
+      <div className="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+        All payments require approval before processing.
       </div>
 
       {/* Notes */}

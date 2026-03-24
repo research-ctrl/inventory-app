@@ -128,7 +128,7 @@ export default async function PinsPage({
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['PIN Number', 'Description', 'Part No.', 'Category', 'Unit', 'Location', 'Stock', 'Status'].map(
+                {['PIN Number', 'Description', 'Vendor', 'Part No.', 'Category', 'Unit', 'Location', 'Stock', 'Status'].map(
                   (h) => (
                     <th
                       key={h}
@@ -162,6 +162,7 @@ export default async function PinsPage({
                       </Link>
                     </td>
                     <td className="px-4 py-3 text-gray-800 max-w-48 truncate">{row.description}</td>
+                    <td className="px-4 py-3 text-xs text-gray-500 truncate max-w-32">{row.vendor_name ?? '—'}</td>
                     <td className="px-4 py-3 text-xs font-mono text-gray-500">
                       {row.part_number ?? '—'}
                     </td>

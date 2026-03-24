@@ -34,6 +34,7 @@ export default async function PurchaseOrderDetailPage({
     .single()
 
   const role = profile?.role ?? 'viewer'
+  const currentUserId = user?.id ?? ''
 
   let po
   try {
@@ -65,6 +66,7 @@ export default async function PurchaseOrderDetailPage({
       }}
       availableTransitions={availableTransitions as any}
       currentRole={role}
+      currentUserId={currentUserId}
     />
   )
 }

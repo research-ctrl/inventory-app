@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
+import { getServerSession } from '@/lib/auth/session'
 import { PageHeader } from '@/components/shared/page-header'
 import { StatusBadge } from '@/components/shared/status-badge'
 import Link from 'next/link'
+import { Plus } from 'lucide-react'
 
 export const metadata = { title: 'Inventory | SMLS' }
 
@@ -53,16 +55,11 @@ export default async function InventoryPage() {
       </div>
 
       {/* Stock Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="font-semibold text-gray-900">Current Stock</h2>
-          <span className="text-xs text-gray-400">Showing up to 50 items</span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+      <div className="overflow-x-auto border-t border-gray-100 mt-8">
+        <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-100">
               <tr>
-                {['PIN', 'Description', 'Category', 'Location', 'Stock', 'Status'].map((h) => (
+                {['PIN', 'Description', 'Category', 'Vendor', 'Location', 'Stock', 'Status'].map((h) => (
                   <th
                     key={h}
                     className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wide"
@@ -88,6 +85,7 @@ export default async function InventoryPage() {
                   </td>
                   <td className="px-4 py-3 text-gray-800 max-w-56 truncate">{row.description}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{row.category ?? '—'}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs truncate max-w-32">{row.vendor_name ?? '—'}</td>
                   <td className="px-4 py-3 text-xs font-mono text-gray-500">
                     {row.location_code ?? '—'}
                   </td>
@@ -116,14 +114,14 @@ export default async function InventoryPage() {
             </tbody>
           </table>
         </div>
-        {(stock ?? []).length > 50 && (
-          <div className="px-6 py-3 border-t border-gray-100 text-center">
-            <Link href="/inventory/pins" className="text-sm text-blue-600 hover:underline">
-              View all {(stock ?? []).length} PINs →
-            </Link>
-          </div>
-        )}
-      </div>
+
+      {(stock ?? []).length > 50 && (
+        <div className="text-center py-4">
+          <Link href="/inventory/pins" className="text-sm font-medium text-blue-600 hover:underline">
+            View all {(stock ?? []).length} PINs →
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

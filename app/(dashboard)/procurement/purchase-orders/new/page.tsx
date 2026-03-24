@@ -38,12 +38,33 @@ export default async function NewPurchaseOrderPage({
   // If a requirement_id was passed in URL, find it
   let initialRequirement = null
   if (sp.requirement_id) {
-    const req = reqList.find((r: any) => r.id === sp.requirement_id)
+    const { data: req } = await supabase
+      .from('requirements')
+      .select(`
+        id, ref_number, title, preferred_vendor_id,
+        requirement_items (
+          id, description, part_number, quantity, unit,
+          estimated_unit_price, currency, notes
+        )
+      `)
+      .eq('id', sp.requirement_id)
+      .single()
+
     if (req) {
       initialRequirement = {
         id: req.id,
         ref_number: req.ref_number ?? '',
         title: req.title ?? '',
+        preferred_vendor_id: req.preferred_vendor_id,
+        items: req.requirement_items?.map((i: any) => ({
+          description: i.description,
+          part_number: i.part_number,
+          quantity: i.quantity,
+          unit: i.unit,
+          unit_price: i.estimated_unit_price,
+          currency: i.currency,
+          notes: i.notes
+        }))
       }
     }
   }

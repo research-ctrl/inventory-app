@@ -4,13 +4,25 @@ import type { CreateRequirementInput } from '@/lib/validations/requirement'
 
 export async function dbCreateRequirement(input: CreateRequirementInput, userId: string) {
   const sb = await createClient()
-  const { items, assigned_approver_id, ...req } = input
+  const { items, ...req } = input
+
+  // Auto-generate title from first item if not provided
+  const autoTitle = req.title?.trim()
+    ? req.title.trim()
+    : (() => {
+        const first = items[0]?.description ?? 'Material Request'
+        const rest = items.length - 1
+        const base = first.length > 60 ? first.substring(0, 60) + '...' : first
+        return rest > 0 ? `${base} + ${rest} more` : base
+      })()
 
   const { data: requirement, error } = await sb
     .from('requirements')
     .insert({
       ...req,
-      assigned_approver_id: assigned_approver_id || null,
+      title: autoTitle,
+      // inventory_pin_id at header level is deprecated — item-level links used instead
+      inventory_pin_id: null,
       requested_by: userId,
       status: 'draft',
     })
@@ -20,7 +32,13 @@ export async function dbCreateRequirement(input: CreateRequirementInput, userId:
 
   if (items.length > 0) {
     const { error: itemError } = await sb.from('requirement_items').insert(
-      items.map((item) => ({ ...item, requirement_id: requirement.id }))
+      items.map((item) => ({
+        ...item,
+        requirement_id: requirement.id,
+        // Pass through new item-level fields
+        inventory_pin_id: item.inventory_pin_id ?? null,
+        item_request_type: item.item_request_type ?? null,
+      }))
     )
     if (itemError) throw new Error(itemError.message)
   }
@@ -70,4 +88,10 @@ export async function dbTransitionRequirement(id: string, toStatus: string, acto
     actor_id: actorId,
     comment,
   })
+
+  // 4. Special logic: if transitioning to 'issued' (inventory release)
+  if (toStatus === 'issued') {
+    const { dbIssueItemsFromRequirement } = await import('./inventory')
+    await dbIssueItemsFromRequirement(id, actorId)
+  }
 }

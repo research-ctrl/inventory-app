@@ -25,11 +25,12 @@ const URGENCY_STYLES: Record<string, string> = {
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
   { value: 'draft', label: 'Draft' },
-  { value: 'pending_approval', label: 'Pending Approval' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'submitted', label: 'Submitted' },
   { value: 'in_progress', label: 'In Progress' },
-  { value: 'closed', label: 'Closed' },
+  { value: 'ordered', label: 'Ordered' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'cancelled', label: 'Cancelled' },
 ];
 
 const URGENCY_OPTIONS = [
@@ -291,9 +292,8 @@ export default function RequirementsTable({ data, currentRole }: RequirementsTab
       )}
 
       {/* Table */}
-      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-100 text-sm">
+      <div className="overflow-x-auto border-t border-gray-100">
+        <table className="min-w-full divide-y divide-gray-100 text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Ref #</th>
@@ -386,9 +386,8 @@ export default function RequirementsTable({ data, currentRole }: RequirementsTab
                   );
                 })
               )}
-            </tbody>
-          </table>
-        </div>
+          </tbody>
+        </table>
       </div>
 
       <p className="text-xs text-gray-400 text-right">{filtered.length} requirement{filtered.length !== 1 ? 's' : ''}</p>

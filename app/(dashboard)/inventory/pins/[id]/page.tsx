@@ -23,6 +23,7 @@ export default async function PinDetailPage({
     .select(`
       *,
       location:store_locations(id, code, name, warehouse),
+      vendor:vendors(id, name, code),
       parent_pin:inventory_pins!inventory_pins_parent_pin_id_fkey(id, pin_number, description),
       derived_pins:inventory_pins!inventory_pins_parent_pin_id_fkey(id, pin_number, description, status),
       recovery:recoveries!recoveries_derived_pin_id_fkey(id, recovery_ref, status, outcome)
@@ -78,7 +79,7 @@ export default async function PinDetailPage({
   const currentStock = stockView?.current_stock ?? 0
 
   return (
-    <div className="space-y-6 max-w-5xl">
+    <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-gray-500">
         <Link href="/inventory" className="hover:text-gray-700">Inventory</Link>
         <span>/</span>

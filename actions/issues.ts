@@ -19,7 +19,7 @@ export async function createIssue(
     const parsed = CreateIssueSchema.safeParse(formData)
     if (!parsed.success) return { success: false, error: JSON.stringify(parsed.error.flatten()) }
     const data = await dbCreateIssue(parsed.data, operatorId)
-    revalidatePath('/issues')
+    revalidatePath('/issued')
     return { success: true, data }
   } catch (e: any) {
     return { success: false, error: e.message }
@@ -32,8 +32,8 @@ export async function submitIssue(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await dbSubmitIssue(issueId, operatorId)
-    revalidatePath('/issues')
-    revalidatePath(`/issues/${issueId}`)
+    revalidatePath('/issued')
+    revalidatePath(`/issued/${issueId}`)
     revalidatePath('/approvals')
     return { success: true }
   } catch (e: any) {
@@ -48,8 +48,8 @@ export async function approveIssue(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await dbApproveIssue(issueId, operatorId, comment)
-    revalidatePath('/issues')
-    revalidatePath(`/issues/${issueId}`)
+    revalidatePath('/issued')
+    revalidatePath(`/issued/${issueId}`)
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message }
@@ -63,8 +63,8 @@ export async function rejectIssue(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     await dbRejectIssue(issueId, operatorId, comment)
-    revalidatePath('/issues')
-    revalidatePath(`/issues/${issueId}`)
+    revalidatePath('/issued')
+    revalidatePath(`/issued/${issueId}`)
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message }
@@ -77,8 +77,8 @@ export async function issueMaterial(
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
     const data = await dbIssueMaterial(issueId, operatorId)
-    revalidatePath('/issues')
-    revalidatePath(`/issues/${issueId}`)
+    revalidatePath('/issued')
+    revalidatePath(`/issued/${issueId}`)
     revalidatePath('/inventory/pins')
     return { success: true, data }
   } catch (e: any) {
@@ -94,8 +94,8 @@ export async function captureUsageOutcome(
     const parsed = UsageOutcomeSchema.safeParse(formData)
     if (!parsed.success) return { success: false, error: JSON.stringify(parsed.error.flatten()) }
     const data = await dbCaptureUsageOutcome(parsed.data, operatorId)
-    revalidatePath('/issues')
-    revalidatePath(`/issues/${parsed.data.issue_id}`)
+    revalidatePath('/issued')
+    revalidatePath(`/issued/${parsed.data.issue_id}`)
     revalidatePath('/recovery')
     revalidatePath('/inventory')
     return { success: true, data }

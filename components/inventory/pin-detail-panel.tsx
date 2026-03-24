@@ -425,6 +425,14 @@ export default function PinDetailPanel({
                 />
                 <InfoRow label="Origin Type" value={pin.origin_type} />
                 <InfoRow label="Created" value={formatDate(pin.created_at)} />
+                <InfoRow 
+                  label="Vendor" 
+                  value={
+                    pin.vendor 
+                      ? `${pin.vendor.name} (${pin.vendor.code})` 
+                      : (originDelivery?.delivery?.purchase_order?.vendor?.name ?? null)
+                  } 
+                />
                 {originDelivery && (
                   <InfoRow
                     label="Origin Delivery"
@@ -464,7 +472,7 @@ export default function PinDetailPanel({
                     {issues.map((issue: any) => (
                       <tr key={issue.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
-                          <Link href={`/issues/${issue.id}`} className="font-mono text-xs text-blue-600 hover:underline">
+                          <Link href={`/issued/${issue.id}`} className="font-mono text-xs text-blue-600 hover:underline">
                             {issue.issue_number}
                           </Link>
                         </td>

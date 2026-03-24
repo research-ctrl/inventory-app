@@ -7,9 +7,9 @@ import { getServerSession } from '@/lib/auth/session'
 import { can } from '@/lib/permissions/checks'
 import { dbDecideApproval, dbCreateApproval } from '@/lib/db/mutations/approvals'
 import { dbTransitionRequirement } from '@/lib/db/mutations/requirements'
-import { dbTransitionPurchaseOrder, dbAutoCreatePOFromRequirement } from '@/lib/db/mutations/purchase-orders'
+import { dbTransitionPurchaseOrder } from '@/lib/db/mutations/purchase-orders'
 import { dbCreateDelivery } from '@/lib/db/mutations/deliveries'
-import { sendRequirementApproved, sendRequirementRejected, sendRequirementApprovedToAccounts, sendPOPendingApproval, sendPOApproved, sendPOApprovedToAccounts, sendPOToVendor } from '@/lib/email/send'
+import { sendRequirementApproved, sendRequirementRejected, sendPOApproved, sendPOApprovedToAccounts, sendPOToVendor } from '@/lib/email/send'
 import { createNotification } from '@/actions/notifications'
 import { getSystemSetting } from '@/actions/settings'
 
@@ -100,112 +100,17 @@ export async function decideApproval(
           }
 
           if (decision === 'approve') {
-            console.log(`[decideApproval] Requirement approval flow starting...`);
-
-            // 1. Email requester
-            console.log(`[decideApproval] Sending approval email to requester: ${requester?.email}`);
+            // Email requester
             await sendRequirementApproved({ ...shared, comment })
-            console.log(`[decideApproval] Approval email sent to requester`);
 
-            // 2. In-app notification to requester
-            console.log(`[decideApproval] Creating in-app notification for requester`);
+            // In-app notification to requester
             await createNotification({
               recipientId: (req as any).requested_by,
               entityType:  'requirement',
               entityId:    approval.entity_id,
-              title:       `Requirement ${(req as any).ref_number ?? ''} approved ✅`,
-              body:        `Approved by ${approverName}. A draft Purchase Order has been created for review.`,
+              title:       `Requirement ${(req as any).ref_number ?? ''} approved`,
+              body:        `Approved by ${approverName}. Procurement will now create a Purchase Order.`,
             })
-            console.log(`[decideApproval] In-app notification created`);
-
-            // 3. Auto-create PO from requirement items (status: pending_approval)
-            let autoPO: any = null
-            try {
-              console.log(`[decideApproval] Auto-creating PO from requirement ${approval.entity_id}`);
-              autoPO = await dbAutoCreatePOFromRequirement(
-                approval.entity_id,
-                profile.id,
-                (req as any).preferred_vendor_id ?? null,
-              )
-              console.log(`[decideApproval] Auto-PO created: id=${autoPO.id}, po_number=${autoPO.po_number}`);
-
-              // 3a. Transition requirement to in_progress (PO has been raised)
-              await dbTransitionRequirement(approval.entity_id, 'in_progress', profile.id)
-              console.log(`[decideApproval] Requirement transitioned to in_progress`);
-
-              // 3b. Create approval record for the auto-created PO
-              // Find the appropriate PO approver (same role priority as manual submission)
-              const { data: approverCandidates } = await sb
-                .from('profiles')
-                .select('id, role, email, full_name')
-                .in('role', ['approver', 'procurement_manager', 'admin', 'super_admin'])
-              const POApproverRoles = ['approver', 'procurement_manager', 'admin', 'super_admin'] as const
-              let poApproverId: string | null = null
-              let poApproverProfile: any = null
-              for (const r of POApproverRoles) {
-                const found = (approverCandidates ?? []).find((p: any) => p.role === r)
-                if (found) { poApproverId = found.id; poApproverProfile = found; break }
-              }
-
-              if (poApproverId) {
-                const due = new Date()
-                due.setDate(due.getDate() + 3)
-                const poApprovalDueDate = due.toISOString().split('T')[0]
-                const poApprovalRecord = await dbCreateApproval('purchase_order', autoPO.id, poApproverId, 1, poApprovalDueDate)
-                console.log(`[decideApproval] PO approval record created for approver ${poApproverId}`);
-
-                // 3c. Email the PO approver
-                if (poApproverProfile?.email) {
-                  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-                  await sendPOPendingApproval({
-                    approverEmail:  poApproverProfile.email,
-                    approverName:   poApproverProfile.full_name ?? poApproverProfile.email,
-                    ref:            autoPO.po_number ?? autoPO.id,
-                    vendorName:     (req as any).preferred_vendor_id ? 'Preferred vendor (TBD)' : 'TBD — to be set by procurement',
-                    totalAmount:    `${(req as any).currency ?? 'USD'} ${(autoPO.total_amount ?? 0).toLocaleString()}`,
-                    createdByName:  approverName,
-                    dueDate:        poApprovalDueDate,
-                    poId:           autoPO.id,
-                    approvalToken:  (poApprovalRecord as any).approval_token,
-                    appUrl,
-                  })
-                  console.log(`[decideApproval] PO approval email sent to ${poApproverProfile.email}`);
-                }
-              } else {
-                console.warn(`[decideApproval] No PO approver found — skipping approval record creation`);
-              }
-            } catch (poErr: any) {
-              console.error('[decideApproval] Auto-PO creation or approval failed:', poErr.message || poErr)
-            }
-
-            // 4. Email accounts team (notification only — PO also needs their approval)
-            console.log(`[decideApproval] Fetching accounts emails...`);
-            const allAccountsEmails = await getAccountsEmails()
-            const emailsToNotify = (selectedAccountsEmails && selectedAccountsEmails.length > 0)
-              ? selectedAccountsEmails
-              : allAccountsEmails
-
-            console.log(`[decideApproval] Accounts emails to notify: ${JSON.stringify(emailsToNotify)}`);
-
-            if (emailsToNotify.length > 0) {
-              await sendRequirementApprovedToAccounts({
-                accountsEmails: emailsToNotify,
-                ref:            (req as any).ref_number ?? approval.entity_id,
-                title:          (req as any).title,
-                approverName,
-                requesterName:  (requester as any).full_name ?? requester.email,
-                urgency:        (req as any).urgency ?? 'routine',
-                requirementId:  approval.entity_id,
-                comment,
-                ...(autoPO ? { poId: autoPO.id, poNumber: autoPO.po_number } : {}),
-              })
-              console.log(`[decideApproval] Accounts team notified`);
-            }
-
-            if (autoPO) {
-              revalidatePath('/procurement/purchase-orders')
-              revalidatePath(`/procurement/purchase-orders/${autoPO.id}`)
-            }
 
           } else {
             await sendRequirementRejected({ ...shared, reason: comment })
@@ -349,7 +254,7 @@ export async function decideApproval(
                 })),
               }, profile.id)
               console.log(`[decideApproval] Delivery ${deliveryRef} auto-created`);
-              revalidatePath('/receiving')
+              revalidatePath('/procurement/deliveries')
             } else {
               console.log(`[decideApproval] No PO items found — delivery not auto-created`);
             }
@@ -368,7 +273,7 @@ export async function decideApproval(
     revalidatePath(`/approvals/${approvalId}`)
     revalidatePath('/requirements')
     revalidatePath('/procurement/purchase-orders')
-    revalidatePath('/receiving')
+    revalidatePath('/procurement/deliveries')
     console.log(`[decideApproval] Completed successfully`);
     return { success: true }
   } catch (e: any) {

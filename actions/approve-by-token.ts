@@ -279,7 +279,7 @@ export async function approveByToken(
           }, actorId)
         }
 
-        revalidatePath('/receiving')
+        revalidatePath('/procurement/deliveries')
       }
 
       revalidatePath('/procurement/purchase-orders')
